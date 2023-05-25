@@ -158,7 +158,8 @@ def generate_aux_rand() -> bytes:
 def message_encode_32bytes(msg: str) -> bytes:
     return hashlib.sha256(msg.encode()).digest()
 
-def test_pre_sign1() -> bool:
+def test_pre_sign_generation() -> bool:
+    print("Test for generating a schnorr adaptor signature.")
     msg = message_encode_32bytes("test")
     print("msg:  " + msg.hex())
     seckey = bytes_from_int(1)
@@ -175,29 +176,14 @@ def test_pre_sign1() -> bool:
     # print("sig_sig:  " + sig[64:].hex())
     return True
 
-def test_pre_sign2() -> bool:
+def test_pre_sign_nonce() -> bool:
+    print("Test for nonce generation without a random auxrand.")
+    print()
     msg = message_encode_32bytes("test")
     print("msg:  " + msg.hex())
     seckey = bytes_from_int(1)
     print("seckey:  " + seckey.hex())
-    aux_rand = bytes_from_int(1)
-    print("aux_rand:  " + aux_rand.hex())
-    T = point_mul(G, 2)
-    assert T is not None
-    print("T:  " + bytes_from_point(T).hex())
-    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
-    print("sig:  " + sig.hex())
-    print("sig_R:  " + sig[:32].hex())
-    print("sig_sig:  " + sig[32:64].hex())
-    # print("sig_sig:  " + sig[64:].hex())
-    return True
-
-def test_pre_sign3() -> bool:
-    msg = message_encode_32bytes("test")
-    print("msg:  " + msg.hex())
-    seckey = bytes_from_int(1)
-    print("seckey:  " + seckey.hex())
-    aux_rand = bytes_from_int(1)
+    aux_rand = generate_aux_rand()
     print("aux_rand:  " + aux_rand.hex())
     T = point_mul(G, 3)
     assert T is not None
@@ -209,7 +195,53 @@ def test_pre_sign3() -> bool:
     # print("sig_sig:  " + sig[64:].hex())
     return True
 
+def test_pre_sign_nonce_without_auxrand() -> bool:
+    print("Test for nonce generation without a random auxrand.")
+
+    print()
+    print("Test with different T")
+    msg = message_encode_32bytes("test")
+    print("msg:  " + msg.hex())
+    seckey = bytes_from_int(1)
+    aux_rand = bytes_from_int(1)
+    T1 = point_mul(G, 2)
+    assert T1 is not None
+    print("T1:  " + bytes_from_point(T1).hex())
+    sig1 = schnorr_pre_sign(msg, seckey, aux_rand, T1)
+    print("sig1_R:  " + sig1[:32].hex())
+    print("sig1_sig:  " + sig1[32:64].hex())
+    T2 = point_mul(G, 3)
+    assert T2 is not None
+    print("T2:  " + bytes_from_point(T2).hex())
+    sig2 = schnorr_pre_sign(msg, seckey, aux_rand, T2)
+    print("sig2_R:  " + sig2[:32].hex())
+    print("sig2_sig:  " + sig2[32:64].hex())
+
+    print()
+    print("Test with different seckey")
+    print("seckey1:  " + seckey.hex())
+    seckey2 = bytes_from_int(2)
+    print("seckey2:  " + seckey2.hex())
+    sig3 = schnorr_pre_sign(msg, seckey2, aux_rand, T1)
+    print("sig1_R:  " + sig1[:32].hex())
+    print("sig1_sig:  " + sig1[32:64].hex())
+    print("sig2_R:  " + sig3[:32].hex())
+    print("sig2_sig:  " + sig3[32:64].hex())
+
+    print()
+    print("Test with different msg")
+    print("msg1:  " + msg.hex())
+    msg2 = message_encode_32bytes("test2")
+    print("msg2:  " + msg2.hex())
+    sig4 = schnorr_pre_sign(msg2, seckey, aux_rand, T1)
+    print("sig1_R:  " + sig1[:32].hex())
+    print("sig1_sig:  " + sig1[32:64].hex())
+    print("sig2_R:  " + sig4[:32].hex())
+    print("sig2_sig:  " + sig4[32:64].hex())
+
 if __name__ == "__main__":
-    test_pre_sign1()
-    test_pre_sign2()
-    test_pre_sign3()
+    test_pre_sign_generation()
+    print()
+    test_pre_sign_nonce()
+    print()
+    test_pre_sign_nonce_without_auxrand()
