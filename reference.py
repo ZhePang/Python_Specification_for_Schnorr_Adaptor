@@ -107,14 +107,14 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: Point) -> by
     assert P is not None
     d = d0 if has_even_y(P) else n - d0
     t = xor_bytes(bytes_from_int(d), tagged_hash("BIP0340/aux", aux_rand))
-    k0 = int_from_bytes(tagged_hash("BIP0340/nonce", t + bytes_from_point(P) + msg)) % n #nonce r
+    k0 = int_from_bytes(tagged_hash("BIP0340/nonce", t + bytes_from_point(T) + bytes_from_point(P) + msg)) % n #nonce r
     if k0 == 0:
         raise RuntimeError('Failure. This happens only with negligible probability.')
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
     k = n - k0 if not has_even_y(R) else k0
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(point_add(R, T)) + bytes_from_point(P) + msg)) % n
-    sig = bytes_from_point(T) + bytes_from_point(R) + bytes_from_int((k + e * d) % n)
+    sig = bytes_from_point(R) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
     if not schnorr_pre_verify(msg, T, bytes_from_point(P), sig):
         raise RuntimeError('The created signature does not pass verification.')
@@ -158,7 +158,7 @@ def generate_aux_rand() -> bytes:
 def message_encode_32bytes(msg: str) -> bytes:
     return hashlib.sha256(msg.encode()).digest()
 
-def test_pre_sign() -> bool:
+def test_pre_sign1() -> bool:
     msg = message_encode_32bytes("test")
     print("msg:  " + msg.hex())
     seckey = bytes_from_int(1)
@@ -170,10 +170,46 @@ def test_pre_sign() -> bool:
     print("T:  " + bytes_from_point(T).hex())
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
-    print("sig_T:  " + sig[:32].hex())
-    print("sig_R:  " + sig[32:64].hex())
-    print("sig_sig:  " + sig[64:].hex())
+    print("sig_R:  " + sig[:32].hex())
+    print("sig_sig:  " + sig[32:64].hex())
+    # print("sig_sig:  " + sig[64:].hex())
+    return True
+
+def test_pre_sign2() -> bool:
+    msg = message_encode_32bytes("test")
+    print("msg:  " + msg.hex())
+    seckey = bytes_from_int(1)
+    print("seckey:  " + seckey.hex())
+    aux_rand = bytes_from_int(1)
+    print("aux_rand:  " + aux_rand.hex())
+    T = point_mul(G, 2)
+    assert T is not None
+    print("T:  " + bytes_from_point(T).hex())
+    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
+    print("sig:  " + sig.hex())
+    print("sig_R:  " + sig[:32].hex())
+    print("sig_sig:  " + sig[32:64].hex())
+    # print("sig_sig:  " + sig[64:].hex())
+    return True
+
+def test_pre_sign3() -> bool:
+    msg = message_encode_32bytes("test")
+    print("msg:  " + msg.hex())
+    seckey = bytes_from_int(1)
+    print("seckey:  " + seckey.hex())
+    aux_rand = bytes_from_int(1)
+    print("aux_rand:  " + aux_rand.hex())
+    T = point_mul(G, 3)
+    assert T is not None
+    print("T:  " + bytes_from_point(T).hex())
+    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
+    print("sig:  " + sig.hex())
+    print("sig_R:  " + sig[:32].hex())
+    print("sig_sig:  " + sig[32:64].hex())
+    # print("sig_sig:  " + sig[64:].hex())
     return True
 
 if __name__ == "__main__":
-    test_pre_sign()
+    test_pre_sign1()
+    test_pre_sign2()
+    test_pre_sign3()
