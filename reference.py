@@ -114,6 +114,7 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: Point) -> by
     assert R is not None
     k = n - k0 if not has_even_y(R) else k0
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(point_add(R, T)) + bytes_from_point(P) + msg)) % n
+    R = point_add(R, T)
     sig = bytes_from_point(R) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
     if not schnorr_pre_verify(msg, T, bytes_from_point(P), sig):
@@ -177,7 +178,7 @@ def test_pre_sign_generation() -> bool:
     return True
 
 def test_pre_sign_nonce() -> bool:
-    print("Test for nonce generation without a random auxrand.")
+    print("Test for nonce generation")
     print()
     msg = message_encode_32bytes("test")
     print("msg:  " + msg.hex())
