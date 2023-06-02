@@ -89,7 +89,6 @@ def lift_x_R0(x: int, parity: int) -> Optional[Point]:
     else:
         return (x, p-y if y & 1 == 0 else y)
     
-
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
 
