@@ -126,32 +126,42 @@ def vector4():
     pubkey = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     assert(lift_x(int_from_bytes(pubkey)) is None)
 
-    return (None, pubkey, None, msg, sig, "FALSE", "public key not on the curve")
+    return (None, pubkey, None, msg, point_to_bytes(default_T), sig, "FALSE", "public key not on the curve")
 
 def vector5():
     seckey = default_seckey
     msg = int_from_bytes(default_msg)
     neg_msg = bytes_from_int(n - msg)
     sig = schnorr_pre_sign(neg_msg, seckey, default_aux_rand, default_T)
-    return (None, pubkey_gen(seckey), None, bytes_from_int(msg), sig, "FALSE", "negated message")
+    return (None, pubkey_gen(seckey), None, bytes_from_int(msg), None, sig, "FALSE", "negated message")
 
 def vector6():
     seckey = default_seckey
     msg = default_msg
     sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
     sig = sig[0:33] + bytes_from_int(n - int_from_bytes(sig[33:65]))
-    return (None, pubkey_gen(seckey), None, msg, sig, "FALSE", "negated s value")
+    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "negated s value")
 
 vectors = [
         vector0(),
         vector1(),
         vector2(),
-        vector3()
+        vector3(),
+        vector4(),
+        vector5(),
+        vector6()
     ]
 
 # Converts the byte strings of a test vector into hex strings
 def bytes_to_hex(seckey, pubkey, aux_rand, msg, T, sig, result, comment):
-    return (seckey.hex().upper() if seckey is not None else None, pubkey.hex().upper(), aux_rand.hex().upper() if aux_rand is not None else None, msg.hex().upper(), (T[0].hex().upper(), T[1].hex().upper()), sig.hex().upper(), result, comment)
+    return (seckey.hex().upper() if seckey is not None else None, 
+            pubkey.hex().upper(), 
+            aux_rand.hex().upper() if aux_rand is not None else None, 
+            msg.hex().upper(), 
+            (T[0].hex().upper(), T[1].hex().upper()) if T is not None else None, 
+            sig.hex().upper(), 
+            result, 
+            comment)
 
 vectors = list(map(lambda vector: bytes_to_hex(vector[0], vector[1], vector[2], vector[3], vector[4], vector[5], vector[6], vector[7]), vectors))
 
