@@ -106,7 +106,7 @@ def vector3():
 
     msg = bytes_from_int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
     aux_rand = bytes_from_int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-    T = (0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+    T = point_mul(G, 2)
 
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     return (seckey, pubkey_gen(seckey), aux_rand, msg, point_to_bytes(T), sig, "TRUE", "test fails if msg is reduced modulo p or n")
@@ -142,6 +142,32 @@ def vector6():
     sig = sig[0:33] + bytes_from_int(n - int_from_bytes(sig[33:65]))
     return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "negated s value")
 
+def vector7():
+    seckey = default_seckey
+    msg = default_msg
+    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
+    negated_parity = b"\x02" if sig[0] == b"\x03" else b"\x03"
+    sig = negated_parity + sig[1:]
+    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "parity of R0 is wrong")
+
+def vector8():
+    seckey = default_seckey
+    msg = default_msg
+    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
+    R0 = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
+    assert(lift_x(int_from_bytes(R0)) is None)
+    sig = sig[0:1] + R0 + sig[33:65]
+    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "R0 not on the curve")
+
+def vector9():
+    T = (1, 2)
+    seckey = default_seckey
+    msg = default_msg
+    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, T)
+    return (None, pubkey_gen(seckey), None, msg, point_to_bytes(T), sig, "FALSE", "point T not on the curve")
+
+
+
 vectors = [
         vector0(),
         vector1(),
@@ -149,7 +175,10 @@ vectors = [
         vector3(),
         vector4(),
         vector5(),
-        vector6()
+        vector6(),
+        vector7(),
+        vector8(),
+        vector9(),
     ]
 
 # Converts the byte strings of a test vector into hex strings
@@ -172,5 +201,4 @@ def print_csv(vectors):
         writer.writerow((i,)+v)
 
 if __name__ == "__main__":
-    # print_csv(vectors)
-    print(vector6())
+    print_csv(vectors)
