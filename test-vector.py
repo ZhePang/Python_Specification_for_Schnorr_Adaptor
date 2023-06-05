@@ -196,9 +196,12 @@ vectors = list(map(lambda vector: bytes_to_hex(vector[0], vector[1], vector[2], 
 
 def print_csv(vectors):
     writer = csv.writer(sys.stdout)
-    writer.writerow(("index", "secret key", "public key", "aux_rand", "message", "signature", "verification result", "comment"))
+    writer.writerow(("index", "secret key", "public key", "aux_rand", "message", "T", "signature", "verification result", "comment"))
     for (i,v) in enumerate(vectors):
         writer.writerow((i,)+v)
 
 if __name__ == "__main__":
-    print_csv(vectors)
+    output_file = "test_vectors.csv"
+    with open(output_file, "w") as f:
+        sys.stdout = f
+        print_csv(vectors)
