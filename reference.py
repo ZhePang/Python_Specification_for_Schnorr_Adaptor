@@ -164,6 +164,52 @@ def debug_print_vars() -> None:
         for var_name, var_val in frame.f_locals.items():
             print('   ' + var_name.rjust(11, ' '), '==', pretty(var_val))
 
+#
+# The following code is only used to verify the test vectors.
+#
+import csv
+import os
+import sys
+
+def test_vectors() -> bool:
+    all_passed = True
+    with open(os.path.join(sys.path[0], 'test_vectors.csv'), newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        reader.__next__()
+        for row in reader:
+            (index, seckey_hex, pubkey_hex, aux_rand_hex, msg_hex, T_hex, sig_hex, result_str, comment) = row
+            pubkey = bytes.fromhex(pubkey_hex)
+            msg = bytes.fromhex(msg_hex)
+            sig = bytes.fromhex(sig_hex)
+            result = result_str == 'TRUE'
+            print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
+            if seckey_hex != '':
+                seckey = bytes.fromhex(seckey_hex)
+                pubkey_actual = pubkey_gen(seckey)
+                if pubkey != pubkey_actual:
+                    print(' * Failed key generation.')
+                    print('   Expected key:', pubkey.hex().upper())
+                    print('     Actual key:', pubkey_actual.hex().upper())
+                aux_rand = bytes.fromhex(aux_rand_hex)
+                T = point_from_hex((T_hex[2:66], T_hex[70:134]))
+                try:
+                    sig_actual = schnorr_pre_sign(msg, seckey, aux_rand, T)
+                    if sig == sig_actual:
+                        print(' * Passed signing test.')
+                    else:
+                        print(' * Failed signing test.')
+                        print('   Expected signature:', sig.hex().upper())
+                        print('     Actual signature:', sig_actual.hex().upper())
+                        all_passed = False
+                except RuntimeError as e:
+                    print(' * Signing test raised exception:', e)
+                    all_passed = False
+    print()
+    if all_passed:
+        print('All test vectors passed.')
+    else:
+        print('Some test vectors failed.')
+    return all_passed
 
 # Helper Functions
 
@@ -174,6 +220,11 @@ def generate_aux_rand() -> bytes:
 
 def message_encode_32bytes(msg: str) -> bytes:
     return hashlib.sha256(msg.encode()).digest()
+
+def point_from_hex(p: tuple) -> Point:
+    x = int_from_bytes(bytes.fromhex(p[0]))
+    y = int_from_bytes(bytes.fromhex(p[1]))
+    return (x, y)
 
 def test_pre_sign_generation() -> bool:
     print("Test for generating a schnorr adaptor signature.")
@@ -276,3 +327,5 @@ if __name__ == "__main__":
     test_pre_sign_nonce()
     print()
     test_pre_sign_nonce_without_auxrand()
+    print()
+    test_vectors()
