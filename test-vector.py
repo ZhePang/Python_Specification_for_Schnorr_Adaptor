@@ -17,7 +17,11 @@ def vector0():
     seckey = bytes_from_int(3)
     msg = bytes_from_int(0)
     aux_rand = bytes_from_int(0)
+    # We should have at least one test vector where the tag point T has an even
+    # Y coordinate and one where it has an odd Y coordinate. In this one Y is even
     T = point_mul(G, 2)
+    assert(has_even_y(T))
+    T = compress_point(T)
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     pubkey = pubkey_gen(seckey)
 
@@ -48,13 +52,13 @@ def vector0():
     R = point_add(point_mul(G, s), point_mul(P, n - e))
     assert(not has_square_y(R))
 
-    return (seckey, pubkey, aux_rand, msg, point_to_bytes(T), sig, "TRUE", None)
+    return (seckey, pubkey, aux_rand, msg, T, sig, "TRUE", None)
 
 def vector1():
     seckey = bytes_from_int(0xB7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF)
     msg = bytes_from_int(0x243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89)
     aux_rand = bytes_from_int(1)
-    T = point_mul(G, 5)
+    T = compress_point(point_mul(G, 5))
 
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     pubkey = pubkey_gen(seckey)
@@ -69,13 +73,13 @@ def vector1():
     R = point_add(point_mul(G, s), point_mul(P, n - e))
     assert(has_square_y(R))
 
-    return (seckey, pubkey, aux_rand, msg, point_to_bytes(T), sig, "TRUE", None)
+    return (seckey, pubkey, aux_rand, msg, T, sig, "TRUE", None)
 
 def vector2():
     seckey = bytes_from_int(0xC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9)
     msg = bytes_from_int(0x7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C)
     aux_rand = bytes_from_int(0xC87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D904)
-    T = point_mul(G, 7)
+    T = compress_point(point_mul(G, 7))
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
 
     # The point reconstructed from the public key has a square Y coordinate.
@@ -94,7 +98,7 @@ def vector2():
     R = point_add(point_mul(G, s), point_mul(P, n - e))
     assert(R[0] % 2 == 1)
 
-    return (seckey, pubkey, aux_rand, msg, point_to_bytes(T), sig, "TRUE", None)
+    return (seckey, pubkey, aux_rand, msg, T, sig, "TRUE", None)
 
 def vector3():
     seckey = bytes_from_int(0x0B432B2677937381AEF05BB02A66ECD012773062CF3FA2549E44F58ED2401710)
@@ -106,17 +110,30 @@ def vector3():
 
     msg = bytes_from_int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
     aux_rand = bytes_from_int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-    T = point_mul(G, 2)
+    T = compress_point(point_mul(G, 2))
 
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
-    return (seckey, pubkey_gen(seckey), aux_rand, msg, point_to_bytes(T), sig, "TRUE", "test fails if msg is reduced modulo p or n")
+    return (seckey, pubkey_gen(seckey), aux_rand, msg, T, sig, "TRUE", "test fails if msg is reduced modulo p or n")
+
+def vector4():
+    seckey = bytes_from_int(0xC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9)
+    msg = bytes_from_int(0x7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C)
+    aux_rand = bytes_from_int(0xC87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D904)
+
+    # The point T has an odd Y coordinate.
+    T = point_negate(point_mul(G, 7))
+    assert(not has_even_y(T))
+    T = compress_point(T)
+
+    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
+    return (seckey, pubkey_gen(seckey), aux_rand, msg, T, sig, "TRUE", None)
 
 default_seckey = bytes_from_int(0xB7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF)
 default_msg = bytes_from_int(0x243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89)
 default_aux_rand = bytes_from_int(0xC87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D906)
-default_T = point_mul(G, 5)
+default_T = compress_point(point_mul(G, 5))
 
-def vector4():
+def vector5():
     # This creates a dummy signature that doesn't have anything to do with the
     # public key.
     seckey = default_seckey
@@ -126,23 +143,23 @@ def vector4():
     pubkey = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     assert(lift_x(int_from_bytes(pubkey)) is None)
 
-    return (None, pubkey, None, msg, point_to_bytes(default_T), sig, "FALSE", "public key not on the curve")
+    return (None, pubkey, None, msg, default_T, sig, "FALSE", "public key not on the curve")
 
-def vector5():
+def vector6():
     seckey = default_seckey
     msg = int_from_bytes(default_msg)
     neg_msg = bytes_from_int(n - msg)
     sig = schnorr_pre_sign(neg_msg, seckey, default_aux_rand, default_T)
     return (None, pubkey_gen(seckey), None, bytes_from_int(msg), None, sig, "FALSE", "negated message")
 
-def vector6():
+def vector7():
     seckey = default_seckey
     msg = default_msg
     sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
     sig = sig[0:33] + bytes_from_int(n - int_from_bytes(sig[33:65]))
     return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "negated s value")
 
-def vector7():
+def vector8():
     seckey = default_seckey
     msg = default_msg
     sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
@@ -150,7 +167,7 @@ def vector7():
     sig = negated_parity + sig[1:]
     return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "parity of R0 is wrong")
 
-def vector8():
+def vector9():
     seckey = default_seckey
     msg = default_msg
     sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
@@ -158,13 +175,6 @@ def vector8():
     assert(lift_x(int_from_bytes(R0)) is None)
     sig = sig[0:1] + R0 + sig[33:65]
     return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "R0 not on the curve")
-
-def vector9():
-    T = (1, 2)
-    seckey = default_seckey
-    msg = default_msg
-    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, T)
-    return (None, pubkey_gen(seckey), None, msg, point_to_bytes(T), sig, "FALSE", "point T not on the curve")
 
 
 
@@ -187,7 +197,7 @@ def bytes_to_hex(seckey, pubkey, aux_rand, msg, T, sig, result, comment):
             pubkey.hex().upper(), 
             aux_rand.hex().upper() if aux_rand is not None else None, 
             msg.hex().upper(), 
-            (T[0].hex().upper(), T[1].hex().upper()) if T is not None else None, 
+            T.hex().upper() if T is not None else None, 
             sig.hex().upper(), 
             result, 
             comment)

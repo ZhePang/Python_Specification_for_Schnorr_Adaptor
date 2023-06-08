@@ -202,7 +202,7 @@ def test_vectors() -> bool:
                     print('   Expected key:', pubkey.hex().upper())
                     print('     Actual key:', pubkey_actual.hex().upper())
                 aux_rand = bytes.fromhex(aux_rand_hex)
-                T = point_from_hex((T_hex[2:66], T_hex[70:134]))
+                T = bytes.fromhex(T_hex)
                 try:
                     sig_actual = schnorr_pre_sign(msg, seckey, aux_rand, T)
                     if sig == sig_actual:
