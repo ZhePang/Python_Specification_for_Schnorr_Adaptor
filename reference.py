@@ -77,17 +77,25 @@ def lift_x(x: int) -> Optional[Point]:
         return None
     return (x, y if y & 1 == 0 else p-y)
 
-def lift_x_R0(x: int, parity: int) -> Optional[Point]:
-    if x >= p:
-        return None
-    y_sq = (pow(x, 3, p) + 7) % p
-    y = pow(y_sq, (p + 1) // 4, p)
-    if pow(y, 2, p) != y_sq:
-        return None
-    if parity == 2:
-        return (x, y if y & 1 == 0 else p-y)
+def point_negate(P: Optional[Point]) -> Optional[Point]:
+    if P is None:
+        return P
+    return (x(P), p - y(P))
+
+def cpoint(x: bytes) -> Point:
+    if len(x) != 33:
+        raise ValueError('x is not a valid compressed point.')
+    P = lift_x(int_from_bytes(x[1:33]))
+    if P is None:
+        raise ValueError('x is not a valid compressed point.')
+    if x[0] == 2:
+        return P
+    elif x[0] == 3:
+        P = point_negate(P)
+        assert P is not None
+        return P
     else:
-        return (x, p-y if y & 1 == 0 else y)
+        raise ValueError('x is not a valid compressed point.')
     
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
@@ -111,7 +119,7 @@ def parity_from_point(P: Point) -> bytes:
     assert not is_infinite(P)
     return b"\x02" if has_even_y(P) else b"\x03"
 
-def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: Point) -> bytes:
+def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> bytes:
     if len(msg) != 32:
         raise ValueError('The message must be a 32-byte array.')
     d0 = int_from_bytes(seckey) #private key
@@ -123,6 +131,9 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: Point) -> by
     assert P is not None
     d = d0 if has_even_y(P) else n - d0
     t = xor_bytes(bytes_from_int(d), tagged_hash("BIP0340/aux", aux_rand))
+    if len(T) != 33:
+        raise ValueError('T must be a compressed point (33 bytes) instead of %i.' % len(T))
+    T = cpoint(T)
     k0 = int_from_bytes(tagged_hash("BIP0340/nonce", t + bytes_from_point(T) + bytes_from_point(P) + msg)) % n #nonce r
     if k0 == 0:
         raise RuntimeError('Failure. This happens only with negligible probability.')
@@ -226,6 +237,9 @@ def point_from_hex(p: tuple) -> Point:
     y = int_from_bytes(bytes.fromhex(p[1]))
     return (x, y)
 
+def compress_point(P: Point) -> bytes:
+    return parity_from_point(P) + bytes_from_point(P)
+
 def test_pre_sign_generation() -> bool:
     print("Test for generating a schnorr adaptor signature.")
     msg = message_encode_32bytes("test")
@@ -234,14 +248,14 @@ def test_pre_sign_generation() -> bool:
     print("seckey:  " + seckey.hex())
     aux_rand = generate_aux_rand()
     print("aux_rand:  " + aux_rand.hex())
-    T = point_mul(G, 2)
+    T = compress_point(point_mul(G, 2))
     assert T is not None
-    print("T:  " + bytes_from_point(T).hex())
+    print("T:  " + T.hex())
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
     print("sig_parity:  " + sig[0:1].hex())
     print("sig_R:  " + sig[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig[1:33]), int_from_bytes(sig[0:1]))))
+    print(has_even_y(cpoint(sig[0:33])))
     print("sig_sig:  " + sig[33:65].hex())
     return True
 
@@ -254,14 +268,14 @@ def test_pre_sign_nonce() -> bool:
     print("seckey:  " + seckey.hex())
     aux_rand = generate_aux_rand()
     print("aux_rand:  " + aux_rand.hex())
-    T = point_mul(G, 3)
+    T = compress_point(point_mul(G, 3))
     assert T is not None
-    print("T:  " + bytes_from_point(T).hex())
+    print("T:  " + T.hex())
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
     print("sig_parity:  " + sig[0:1].hex())
     print("sig_R:  " + sig[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig[1:33]), int_from_bytes(sig[0:1]))))
+    print(has_even_y(cpoint(sig[0:33])))
     print("sig_sig:  " + sig[33:65].hex())
     return True
 
@@ -274,21 +288,21 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("msg:  " + msg.hex())
     seckey = bytes_from_int(1)
     aux_rand = bytes_from_int(1)
-    T1 = point_mul(G, 2)
+    T1 = compress_point(point_mul(G, 2))
     assert T1 is not None
-    print("T1:  " + bytes_from_point(T1).hex())
+    print("T1:  " + T1.hex())
     sig1 = schnorr_pre_sign(msg, seckey, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig1[1:33]), int_from_bytes(sig1[0:1]))))
+    print(has_even_y(cpoint(sig1[0:33])))
     print("sig1_sig:  " + sig1[33:65].hex())
-    T2 = point_mul(G, 3)
+    T2 = compress_point(point_mul(G, 5))
     assert T2 is not None
-    print("T2:  " + bytes_from_point(T2).hex())
+    print("T2:  " + T2.hex())
     sig2 = schnorr_pre_sign(msg, seckey, aux_rand, T2)
     print("sig2_parity:  " + sig2[0:1].hex())
     print("sig2_R:  " + sig2[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig2[1:33]), int_from_bytes(sig2[0:1]))))
+    print(has_even_y(cpoint(sig2[0:33])))
     print("sig2_sig:  " + sig2[33:65].hex())
 
     print()
@@ -299,11 +313,11 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     sig3 = schnorr_pre_sign(msg, seckey2, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig1[1:33]), int_from_bytes(sig1[0:1]))))
+    print(has_even_y(cpoint(sig1[0:33])))
     print("sig1_sig:  " + sig1[33:65].hex())
     print("sig2_parity:  " + sig3[0:1].hex())
     print("sig2_R:  " + sig3[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig3[1:33]), int_from_bytes(sig3[0:1]))))
+    print(has_even_y(cpoint(sig3[0:33])))
     print("sig2_sig:  " + sig3[33:65].hex())
 
     print()
@@ -314,11 +328,11 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     sig4 = schnorr_pre_sign(msg2, seckey, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig1[1:33]), int_from_bytes(sig1[0:1]))))
+    print(has_even_y(cpoint(sig1[0:33])))
     print("sig1_sig:  " + sig1[33:65].hex())
     print("sig2_parity:  " + sig4[0:1].hex())
     print("sig2_R:  " + sig4[1:33].hex())
-    print(has_even_y(lift_x_R0(int_from_bytes(sig4[1:33]), int_from_bytes(sig4[0:1]))))
+    print(has_even_y(cpoint(sig4[0:33])))
     print("sig2_sig:  " + sig4[33:65].hex())
 
 if __name__ == "__main__":
