@@ -120,8 +120,6 @@ def parity_from_point(P: Point) -> bytes:
     return b"\x02" if has_even_y(P) else b"\x03"
 
 def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> bytes:
-    if len(msg) != 32:
-        raise ValueError('The message must be a 32-byte array.')
     d0 = int_from_bytes(seckey) #private key
     if not (1 <= d0 <= n - 1):
         raise ValueError('The secret key must be an integer in the range 1..n-1.')
