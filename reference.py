@@ -147,7 +147,30 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     return sig
 
 def schnorr_pre_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> bool:
-    return True
+    T0 = schnorr_adaptor_extract_t(msg, pubkey, pre_sig)
+    if T is None:
+        debug_print_vars()
+        return False
+    return T0 == T
+
+def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Point:
+    if len(pubkey) != 32:
+        raise ValueError('The public key must be a 32-byte array.')
+    if len(sig) != 65:
+        raise ValueError('The signature must be a 65-byte array.')
+    P = lift_x(int_from_bytes(pubkey))
+    s0 = int_from_bytes(sig[33:65])
+    if (P is None) or (s0 >= n):
+        debug_print_vars()
+        return False
+    R0 = cpoint(sig[0:33])
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
+    R = point_add(point_mul(G, s0), point_mul(P, n - e))
+    if (R is None) or (not has_even_y(R)):
+        debug_print_vars()
+        return False
+    T = point_add(R0, point_negate(R))
+    return T
 
 #
 # Debugging functions
