@@ -137,8 +137,8 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
         raise RuntimeError('Failure. This happens only with negligible probability.')
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
-    k = n - k0 if not has_even_y(R) else k0
     R0 = point_add(R, T)
+    k = n - k0 if not has_even_y(R0) else k0
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
@@ -162,13 +162,16 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Point:
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
         raise RuntimeError('Pubkey or signature is invalid.')
-    R0 = cpoint(sig[0:33])
+    R0 = lift_x(int_from_bytes(sig[1:33]))
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
-    if (R is None) or (not has_even_y(R)):
-        raise RuntimeError('R is invalid.')
     T = point_add(R0, point_negate(R))
-    return T
+    if sig[0] == 2:
+        return T
+    elif sig[0] == 3:
+        return point_negate(T)
+    else:
+        return None
 
 #
 # Debugging functions
