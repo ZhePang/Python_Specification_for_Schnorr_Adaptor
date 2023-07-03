@@ -138,7 +138,7 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
     k = n - k0 if not has_even_y(R) else k0
-    R0 = point_add(R, T)
+    R0 = point_add(point_mul(G, k), T) # elliptic curve point R0=rG+kP
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
