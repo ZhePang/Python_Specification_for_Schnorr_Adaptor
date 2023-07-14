@@ -139,6 +139,8 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     assert R is not None
     k = n - k0 if not has_even_y(R) else k0
     R0 = point_add(point_mul(G, k), T) # elliptic curve point R0 = R + T
+    if is_infinite(R0):
+        raise RuntimeError('Failure. This happens only with negligible probability.')
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
@@ -168,6 +170,8 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Point:
     if (R is None) or (not has_even_y(R)):
         raise RuntimeError('R is invalid.')
     T = point_add(R0, point_negate(R))
+    if is_infinite(T):
+        raise RuntimeError('T is infinite.')
     return T
 
 #

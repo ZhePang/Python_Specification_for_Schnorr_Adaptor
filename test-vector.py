@@ -155,9 +155,21 @@ def vector6():
 def vector7():
     seckey = default_seckey
     msg = default_msg
-    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
+    T = compress_point(point_mul(G, 4))
+    sig = schnorr_pre_sign(msg, seckey, default_aux_rand, T)
     sig = sig[0:33] + bytes_from_int(n - int_from_bytes(sig[33:65]))
-    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "negated s value")
+
+    pubkey = pubkey_gen(seckey)
+    s = int_from_bytes(sig[33:65])
+    P = lift_x(int_from_bytes(pubkey))
+    if (P is None) or (s >= n):
+        debug_print_vars()
+        return False
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + pubkey + msg)) % n
+    R = point_add(point_mul(G, s), point_mul(P, n - e))
+    assert(has_even_y(R))
+    
+    return (None, pubkey_gen(seckey), None, msg, T, sig, "FALSE", "negated s value")
 
 def vector8():
     seckey = default_seckey
