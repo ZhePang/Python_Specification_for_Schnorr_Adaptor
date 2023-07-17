@@ -174,6 +174,24 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Point:
         raise RuntimeError('T is infinite.')
     return T
 
+def schnorr_adapt(sig: bytes, t: bytes) -> bytes:
+    if len(sig) != 65:
+        raise ValueError('The signature must be a 65-byte array.')
+    s0 = int_from_bytes(sig[33:65])
+    s = s0 + int_from_bytes(t)
+    sig64 = sig[1:33] + bytes_from_int(s % n)
+    return sig64
+
+def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
+    if len(sig65) != 65:
+        raise ValueError('The adaptor signature must be a 65-byte array.')
+    if len(sig64) != 64:
+        raise ValueError('The adaptor signature must be a 64-byte array.')
+    s0 = int_from_bytes(sig65[33:65])
+    s = int_from_bytes(sig64[32:64])
+    t = bytes_from_int((s - s0) % n)
+    return t
+
 #
 # Debugging functions
 #
