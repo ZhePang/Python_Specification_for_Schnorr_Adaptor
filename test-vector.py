@@ -17,6 +17,7 @@ def vector0():
     seckey = bytes_from_int(3)
     msg = bytes_from_int(0)
     aux_rand = bytes_from_int(0)
+    
     # We should have at least one test vector where the tag point T has an even
     # Y coordinate and one where it has an odd Y coordinate. In this one Y is even
     T = point_mul(G, 2)
@@ -50,6 +51,8 @@ def vector0():
         return False
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + pubkey + msg)) % n
     R = point_add(point_mul(G, s), point_mul(P, n - e))
+    if sig[0] == 3:
+        R = point_negate(R)
     assert(not has_square_y(R))
 
     return (seckey, pubkey, aux_rand, msg, T, sig, "TRUE", None)
@@ -58,7 +61,7 @@ def vector1():
     seckey = bytes_from_int(0xB7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF)
     msg = bytes_from_int(0x243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89)
     aux_rand = bytes_from_int(1)
-    T = compress_point(point_mul(G, 5))
+    T = compress_point(point_mul(G, 4))
 
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
     pubkey = pubkey_gen(seckey)
@@ -71,6 +74,8 @@ def vector1():
         return False
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + pubkey + msg)) % n
     R = point_add(point_mul(G, s), point_mul(P, n - e))
+    if sig[0] == 3:
+        R = point_negate(R)
     assert(has_square_y(R))
 
     return (seckey, pubkey, aux_rand, msg, T, sig, "TRUE", None)
@@ -150,7 +155,7 @@ def vector6():
     msg = int_from_bytes(default_msg)
     neg_msg = bytes_from_int(n - msg)
     sig = schnorr_pre_sign(neg_msg, seckey, default_aux_rand, default_T)
-    return (None, pubkey_gen(seckey), None, bytes_from_int(msg), None, sig, "FALSE", "negated message")
+    return (None, pubkey_gen(seckey), None, bytes_from_int(msg), default_T, sig, "FALSE", "negated message")
 
 def vector7():
     seckey = default_seckey
@@ -165,9 +170,6 @@ def vector7():
     if (P is None) or (s >= n):
         debug_print_vars()
         return False
-    e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + pubkey + msg)) % n
-    R = point_add(point_mul(G, s), point_mul(P, n - e))
-    assert(has_even_y(R))
     
     return (None, pubkey_gen(seckey), None, msg, T, sig, "FALSE", "negated s value")
 
@@ -177,7 +179,7 @@ def vector8():
     sig = schnorr_pre_sign(msg, seckey, default_aux_rand, default_T)
     negated_parity = b"\x02" if sig[0] == b"\x03" else b"\x03"
     sig = negated_parity + sig[1:]
-    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "parity of R0 is wrong")
+    return (None, pubkey_gen(seckey), None, msg, default_T, sig, "FALSE", "parity of R0 is wrong")
 
 def vector9():
     seckey = default_seckey
@@ -186,7 +188,7 @@ def vector9():
     R0 = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     assert(lift_x(int_from_bytes(R0)) is None)
     sig = sig[0:1] + R0 + sig[33:65]
-    return (None, pubkey_gen(seckey), None, msg, None, sig, "FALSE", "R0 not on the curve")
+    return (None, pubkey_gen(seckey), None, msg, default_T, sig, "FALSE", "R0 not on the curve")
 
 
 
