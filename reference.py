@@ -149,8 +149,12 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     return sig
 
 def schnorr_pre_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> bool:
+    if len(pubkey) != 32:
+        raise ValueError('The public key must be a 32-byte array.')
+    if len(pre_sig) != 65:
+        raise ValueError('The signature must be a 65-byte array.')
     T0 = schnorr_adaptor_extract_t(msg, pubkey, pre_sig)
-    if T0 is None or T0 is False:
+    if (T0 is None) or (T0 is False):
         debug_print_vars()
         return False
     return T0 == T
@@ -166,10 +170,10 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         debug_print_vars()
         return False
     R0 = lift_x(int_from_bytes(sig[1:33]))
-    if is_infinite(R0):
+    if R0 is None:
         debug_print_vars()
         return False
-    e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + bytes_from_point(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
     if (R is None):
         debug_print_vars()
@@ -181,20 +185,24 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         T = point_negate(T)
     else:
         raise ValueError('The signature must start with 0x02 or 0x03.')
-    if is_infinite(T):
+    if (T is None):
         debug_print_vars()
         return False
     return T
 
-def schnorr_adapt(sig: bytes, t: bytes) -> bytes:
+def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     s0 = int_from_bytes(sig[33:65])
+    t = int_from_bytes(adaptor)
+    if (s0 >= n) or (t >= n):
+        debug_print_vars()
+        raise ValueError('The signature and adaptor must be an integer in the range 1..n-1')
     if sig[0] == 2:
-        s = s0 + int_from_bytes(t)
+        s = (s0 + t) % n
     elif sig[0] == 3:
-        s = s0 - int_from_bytes(t)
-    sig64 = sig[1:33] + bytes_from_int(s % n)
+        s = (s0 - t) % n
+    sig64 = sig[1:33] + bytes_from_int(s)
     return sig64
 
 def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
@@ -204,6 +212,9 @@ def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
         raise ValueError('The adaptor signature must be a 64-byte array.')
     s0 = int_from_bytes(sig65[33:65])
     s = int_from_bytes(sig64[32:64])
+    if (s0 >= n) or (s >= n):
+        debug_print_vars()
+        raise ValueError('The signatures must be an integer in the range 1..n-1')
     if sig65[0] == 2:
         t = bytes_from_int((s - s0) % n)
     elif sig65[0] == 3:
