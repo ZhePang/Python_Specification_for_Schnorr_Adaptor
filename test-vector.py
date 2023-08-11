@@ -233,7 +233,7 @@ def vector12():
     sig64 = schnorr_adapt(sig, t)
     negated_parity = b"\x02" if sig[0] == 3 else b"\x03"
     sig = negated_parity + sig[1:]
-    return (None, None, None, None, T, t, sig, sig64, "Adaptor extraction and Adapting", "FALSE", "Adapting test: parity of R0 is wrong")
+    return (None, None, None, None, T, t, sig, sig64, "Adaptor extraction and Adapting", "FALSE", "Adaptor extraction and Adapting test: parity of R0 is wrong")
 
 def vector13():
     t = 102737890522302903489175669941446530087577081774431208355392319064688794746007
