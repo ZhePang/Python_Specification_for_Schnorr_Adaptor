@@ -258,13 +258,13 @@ def test_vectors() -> bool:
         reader = csv.reader(csvfile)
         reader.__next__()
         for row in reader:
-            (index, seckey_hex, pubkey_hex, aux_rand_hex, msg_hex, T_hex, sig_hex, result_str, comment) = row
-            pubkey = bytes.fromhex(pubkey_hex)
-            msg = bytes.fromhex(msg_hex)
+            (index, seckey_hex, pubkey_hex, aux_rand_hex, msg_hex, T_hex, t_hex, sig_hex, sig64_hex, test_type_str, result_str, comment) = row
             sig = bytes.fromhex(sig_hex)
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
             if seckey_hex != '':
+                pubkey = bytes.fromhex(pubkey_hex)
+                msg = bytes.fromhex(msg_hex)
                 seckey = bytes.fromhex(seckey_hex)
                 pubkey_actual = pubkey_gen(seckey)
                 if pubkey != pubkey_actual:
@@ -285,17 +285,47 @@ def test_vectors() -> bool:
                 except RuntimeError as e:
                     print(' * Signing test raised exception:', e)
                     all_passed = False
-            T = cpoint(bytes.fromhex(T_hex))
-            result_actual = schnorr_pre_verify(msg, T, pubkey, sig)
-            if result == result_actual:
-                print(' * Passed verification test.')
-            else:
-                print(' * Failed verification test.')
-                print('   Expected verification result:', result)
-                print('     Actual verification result:', result_actual)
-                if comment:
-                    print('   Comment:', comment)
-                all_passed = False
+            if pubkey_hex != '' and msg_hex != '':
+                pubkey = bytes.fromhex(pubkey_hex)
+                msg = bytes.fromhex(msg_hex)
+                T = cpoint(bytes.fromhex(T_hex))
+                result_actual = schnorr_pre_verify(msg, T, pubkey, sig)
+                if result == result_actual:
+                    print(' * Passed verification test.')
+                else:
+                    print(' * Failed verification test.')
+                    print('   Expected verification result:', result)
+                    print('     Actual verification result:', result_actual)
+                    if comment:
+                        print('   Comment:', comment)
+                    all_passed = False
+            if sig64_hex != '' and t_hex != '':
+                sig64 = bytes.fromhex(sig64_hex)
+                t = bytes.fromhex(t_hex)
+                if test_type_str == "" or "Adaptor extraction" in test_type_str:
+                    adaptor = schnorr_extract_adaptor(sig, sig64)
+                    result_actual = t == adaptor
+                    if result == result_actual:
+                        print(' * Passed adaptor extraction test.')
+                    else:
+                        print(' * Failed adaptor extraction test.')
+                        print('   Expected adaptor:', t.hex().upper())
+                        print('     Actual adaptor:', adaptor.hex().upper())
+                        if comment:
+                            print('   Comment:', comment)
+                        all_passed = False
+                if test_type_str == "" or "Adapting" in test_type_str:
+                    sig_actual = schnorr_adapt(sig, t)
+                    result_actual = sig64 == sig_actual
+                    if result == result_actual:
+                        print(' * Passed adapting test.')
+                    else:
+                        print(' * Failed adapting test.')
+                        print('   Expected adapted schnorr signature:', sig64.hex().upper())
+                        print('     Actual adapted schnorr signature:', sig_actual.hex().upper())
+                        if comment:
+                            print('   Comment:', comment)
+                        all_passed = False
     print()
     if all_passed:
         print('All test vectors passed.')
