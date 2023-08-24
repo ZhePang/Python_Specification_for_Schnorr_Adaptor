@@ -96,7 +96,7 @@ def cpoint(x: bytes) -> Point:
         return P
     else:
         raise ValueError('x is not a valid compressed point.')
-    
+
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
 
@@ -131,12 +131,12 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     t = xor_bytes(bytes_from_int(d), tagged_hash("BIP0340/aux", aux_rand))
     if len(T) != 33:
         raise ValueError('T must be a compressed point (33 bytes) instead of %i.' % len(T))
-    T = cpoint(T)
-    k0 = int_from_bytes(tagged_hash("BIP0340/nonce", t + bytes_from_point(T) + bytes_from_point(P) + msg)) % n #nonce r
+    k0 = int_from_bytes(tagged_hash("BIP0340/nonce", t + T + bytes_from_point(P) + msg)) % n #nonce r
     if k0 == 0:
         raise RuntimeError('Failure. This happens only with negligible probability.')
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
+    T = cpoint(T)
     R0 = point_add(R, T) # elliptic curve point R0 = R + T
     k = n - k0 if not has_even_y(R0) else k0
     if is_infinite(R0):

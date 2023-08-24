@@ -17,7 +17,7 @@ def vector0():
     seckey = bytes_from_int(3)
     msg = bytes_from_int(0)
     aux_rand = bytes_from_int(0)
-    
+
     # We should have at least one test vector where the tag point T has an even
     # Y coordinate and one where it has an odd Y coordinate. In this one Y is even
     t = 2
@@ -90,7 +90,7 @@ def vector2():
     seckey = bytes_from_int(0xC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9)
     msg = bytes_from_int(0x7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C)
     aux_rand = bytes_from_int(0xC87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D904)
-    t = 7
+    t = 6
     T = compress_point(point_mul(G, t))
     t = bytes_from_int(t)
     sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
@@ -187,7 +187,7 @@ def vector7():
     if (P is None) or (s >= n):
         debug_print_vars()
         return False
-    
+
     return (None, pubkey_gen(seckey), None, msg, T, None, sig, None, "Verification", "FALSE", "Verification test: negated s value")
 
 def vector8():
