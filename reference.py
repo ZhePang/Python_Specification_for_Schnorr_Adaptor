@@ -166,11 +166,9 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         raise ValueError('The signature must be a 65-byte array.')
     P = lift_x(int_from_bytes(pubkey))
     s0 = int_from_bytes(sig[33:65])
-    if (P is None) or (s0 >= n):
-        debug_print_vars()
-        return False
-    R0 = lift_x(int_from_bytes(sig[1:33]))
-    if R0 is None:
+    r0 = int_from_bytes(sig[1:33])
+    R0 = lift_x(r0)
+    if (P is None) or (s0 >= n) or (r0 >= p) or (R0 is None):
         debug_print_vars()
         return False
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + bytes_from_point(P) + msg)) % n
