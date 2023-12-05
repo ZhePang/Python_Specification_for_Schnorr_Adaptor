@@ -159,29 +159,29 @@ def schnorr_pre_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> b
         return False
     return T0 == T
 
-def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[Point]:
+def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, pre_sig: bytes) -> Optional[Point]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
-    if len(sig) != 65:
+    if len(pre_sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     P = lift_x(int_from_bytes(pubkey))
-    s0 = int_from_bytes(sig[33:65])
+    s0 = int_from_bytes(pre_sig[33:65])
     if (P is None) or (s0 >= n):
         debug_print_vars()
         return False
-    R0 = lift_x(int_from_bytes(sig[1:33]))
+    R0 = lift_x(int_from_bytes(pre_sig[1:33]))
     if R0 is None:
         debug_print_vars()
         return False
-    e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + bytes_from_point(P) + msg)) % n
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", pre_sig[1:33] + bytes_from_point(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
     if (R is None):
         debug_print_vars()
         return False
     T = point_add(R0, point_negate(R))
-    if sig[0] == 2:
+    if pre_sig[0] == 0x02:
         pass
-    elif sig[0] == 3:
+    elif pre_sig[0] == 0x03:
         T = point_negate(T)
     else:
         raise ValueError('The signature must start with 0x02 or 0x03.')
@@ -190,34 +190,34 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         return False
     return T
 
-def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
-    if len(sig) != 65:
+def schnorr_adapt(pre_sig: bytes, adaptor: bytes) -> bytes:
+    if len(pre_sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
-    s0 = int_from_bytes(sig[33:65])
+    s0 = int_from_bytes(pre_sig[33:65])
     t = int_from_bytes(adaptor)
     if (s0 >= n) or (t >= n):
         debug_print_vars()
         raise ValueError('The signature and adaptor must be an integer in the range 1..n-1')
-    if sig[0] == 2:
+    if pre_sig[0] == 0x02:
         s = (s0 + t) % n
-    elif sig[0] == 3:
+    elif pre_sig[0] == 0x03:
         s = (s0 - t) % n
-    sig64 = sig[1:33] + bytes_from_int(s)
-    return sig64
+    sig = pre_sig[1:33] + bytes_from_int(s)
+    return sig
 
-def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
-    if len(sig65) != 65:
+def schnorr_extract_adaptor(pre_sig: bytes, sig: bytes) -> bytes:
+    if len(pre_sig) != 65:
         raise ValueError('The adaptor signature must be a 65-byte array.')
-    if len(sig64) != 64:
+    if len(sig) != 64:
         raise ValueError('The adaptor signature must be a 64-byte array.')
-    s0 = int_from_bytes(sig65[33:65])
-    s = int_from_bytes(sig64[32:64])
+    s0 = int_from_bytes(pre_sig[33:65])
+    s = int_from_bytes(sig[32:64])
     if (s0 >= n) or (s >= n):
         debug_print_vars()
         raise ValueError('The signatures must be an integer in the range 1..n-1')
-    if sig65[0] == 2:
+    if pre_sig[0] == 2:
         t = bytes_from_int((s - s0) % n)
-    elif sig65[0] == 3:
+    elif pre_sig[0] == 3:
         t = bytes_from_int((s0 - s) % n)
     return t
 
