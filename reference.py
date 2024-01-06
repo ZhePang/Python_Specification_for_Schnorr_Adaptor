@@ -1,3 +1,7 @@
+# WARNING: This implementation is for demonstration purposes only and _not_ to
+# be used in production environments. The code is vulnerable to timing attacks,
+# for example.
+
 from typing import Tuple, Optional, Any
 import hashlib
 import binascii
