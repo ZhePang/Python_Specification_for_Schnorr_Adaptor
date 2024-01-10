@@ -164,6 +164,8 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
+    if sig[0] not in [0x02, 0x03]:
+        raise ValueError('The signature must start with 0x02 or 0x03.')
     P = lift_x(int_from_bytes(pubkey))
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
@@ -183,8 +185,6 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
         pass
     elif sig[0] == 3:
         T = point_negate(T)
-    else:
-        raise ValueError('The signature must start with 0x02 or 0x03.')
     if (T is None):
         debug_print_vars()
         return False
@@ -193,6 +193,8 @@ def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional
 def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
+    if sig[0] not in [0x02, 0x03]:
+        raise ValueError('The signature must start with 0x02 or 0x03.')
     s0 = int_from_bytes(sig[33:65])
     t = int_from_bytes(adaptor)
     if (s0 >= n) or (t >= n):
@@ -210,6 +212,8 @@ def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
         raise ValueError('The adaptor signature must be a 65-byte array.')
     if len(sig64) != 64:
         raise ValueError('The adaptor signature must be a 64-byte array.')
+    if sig65[0] not in [0x02, 0x03]:
+        raise ValueError('The signature must start with 0x02 or 0x03.')
     s0 = int_from_bytes(sig65[33:65])
     s = int_from_bytes(sig64[32:64])
     if (s0 >= n) or (s >= n):
