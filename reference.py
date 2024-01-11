@@ -154,7 +154,7 @@ def schnorr_pre_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> b
     if len(pre_sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     T0 = schnorr_adaptor_extract_t(msg, pubkey, pre_sig)
-    if (T0 is None) or (T0 is False):
+    if (T0 is False):
         debug_print_vars()
         return False
     return T0 == T
