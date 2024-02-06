@@ -142,9 +142,9 @@ def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) ->
     assert R is not None
     T = cpoint(T)
     R0 = point_add(R, T) # elliptic curve point R0 = R + T
-    k = n - k0 if not has_even_y(R0) else k0
     if is_infinite(R0):
         raise RuntimeError('Failure. This happens only with negligible probability.')
+    k = n - k0 if not has_even_y(R0) else k0
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
