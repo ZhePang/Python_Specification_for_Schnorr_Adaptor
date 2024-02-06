@@ -123,7 +123,7 @@ def parity_from_point(P: Point) -> bytes:
     assert not is_infinite(P)
     return b"\x02" if has_even_y(P) else b"\x03"
 
-def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> bytes:
+def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> bytes:
     d0 = int_from_bytes(seckey) #private key
     if not (1 <= d0 <= n - 1):
         raise ValueError('The secret key must be an integer in the range 1..n-1.')
@@ -148,22 +148,22 @@ def schnorr_pre_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) -> by
     e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
     sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
-    if not schnorr_pre_verify(msg, T, bytes_from_point(P), sig):
+    if not schnorr_presig_verify(msg, T, bytes_from_point(P), sig):
         raise RuntimeError('The created signature does not pass verification.')
     return sig
 
-def schnorr_pre_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> bool:
+def schnorr_presig_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -> bool:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(pre_sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
-    T0 = schnorr_adaptor_extract_t(msg, pubkey, pre_sig)
-    if (T0 is None) or (T0 is False):
+    T0 = schnorr_extract_adaptor(msg, pubkey, pre_sig)
+    if (T0 is False):
         debug_print_vars()
         return False
     return T0 == T
 
-def schnorr_adaptor_extract_t(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[Point]:
+def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[Point]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
@@ -209,7 +209,7 @@ def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
     sig64 = sig[1:33] + bytes_from_int(s)
     return sig64
 
-def schnorr_extract_adaptor(sig65: bytes, sig64: bytes) -> bytes:
+def schnorr_extract_secadaptor(sig65: bytes, sig64: bytes) -> bytes:
     if len(sig65) != 65:
         raise ValueError('The adaptor signature must be a 65-byte array.')
     if len(sig64) != 64:
@@ -278,7 +278,7 @@ def test_vectors() -> bool:
                 aux_rand = bytes.fromhex(aux_rand_hex)
                 T = bytes.fromhex(T_hex)
                 try:
-                    sig_actual = schnorr_pre_sign(msg, seckey, aux_rand, T)
+                    sig_actual = schnorr_presig_sign(msg, seckey, aux_rand, T)
                     if sig == sig_actual:
                         print(' * Passed signing test.')
                     else:
@@ -293,7 +293,7 @@ def test_vectors() -> bool:
                 pubkey = bytes.fromhex(pubkey_hex)
                 msg = bytes.fromhex(msg_hex)
                 T = cpoint(bytes.fromhex(T_hex))
-                result_actual = schnorr_pre_verify(msg, T, pubkey, sig)
+                result_actual = schnorr_presig_verify(msg, T, pubkey, sig)
                 if result == result_actual:
                     print(' * Passed verification test.')
                 else:
@@ -307,7 +307,7 @@ def test_vectors() -> bool:
                 sig64 = bytes.fromhex(sig64_hex)
                 t = bytes.fromhex(t_hex)
                 if test_type_str == "" or "Adaptor extraction" in test_type_str:
-                    adaptor = schnorr_extract_adaptor(sig, sig64)
+                    adaptor = schnorr_extract_secadaptor(sig, sig64)
                     result_actual = t == adaptor
                     if result == result_actual:
                         print(' * Passed adaptor extraction test.')
@@ -368,7 +368,7 @@ def test_pre_sign_generation() -> bool:
     T = compress_point(point_mul(G, t))
     assert T is not None
     print("T:  " + T.hex())
-    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
+    sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
     print("sig_parity:  " + sig[0:1].hex())
     print("sig_R:  " + sig[1:33].hex())
@@ -376,7 +376,7 @@ def test_pre_sign_generation() -> bool:
     print("sig_sig:  " + sig[33:65].hex())
     sig64 = schnorr_adapt(sig, bytes_from_int(t))
     print("sig64:  " + sig64.hex())
-    t1 = schnorr_extract_adaptor(sig, sig64)
+    t1 = schnorr_extract_secadaptor(sig, sig64)
     assert t == int_from_bytes(t1)
     return True
 
@@ -392,7 +392,7 @@ def test_pre_sign_nonce() -> bool:
     T = compress_point((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7))
     assert T is not None
     print("T:  " + T.hex())
-    sig = schnorr_pre_sign(msg, seckey, aux_rand, T)
+    sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
     print("sig_parity:  " + sig[0:1].hex())
     print("sig_R:  " + sig[1:33].hex())
@@ -413,28 +413,28 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     T1 = compress_point(point_mul(G, t1))
     assert T1 is not None
     print("T1:  " + T1.hex())
-    sig1 = schnorr_pre_sign(msg, seckey, aux_rand, T1)
+    sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
     print("sig1_sig:  " + sig1[33:65].hex())
     sig164 = schnorr_adapt(sig1, bytes_from_int(t1))
     print("sig1_64:  " + sig164.hex())
-    t11 = schnorr_extract_adaptor(sig1, sig164)
+    t11 = schnorr_extract_secadaptor(sig1, sig164)
     assert t1 == int_from_bytes(t11)
 
     t2 = 5
     T2 = compress_point(point_mul(G, t2))
     assert T2 is not None
     print("T2:  " + T2.hex())
-    sig2 = schnorr_pre_sign(msg, seckey, aux_rand, T2)
+    sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2)
     print("sig2_parity:  " + sig2[0:1].hex())
     print("sig2_R:  " + sig2[1:33].hex())
     print(has_even_y(cpoint(sig2[0:33])))
     print("sig2_sig:  " + sig2[33:65].hex())
     sig264 = schnorr_adapt(sig2, bytes_from_int(t2))
     print("sig2_64:  " + sig264.hex())
-    t21 = schnorr_extract_adaptor(sig2, sig264)
+    t21 = schnorr_extract_secadaptor(sig2, sig264)
     assert t2 == int_from_bytes(t21)
 
     print()
@@ -442,7 +442,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("seckey1:  " + seckey.hex())
     seckey2 = bytes_from_int(2)
     print("seckey2:  " + seckey2.hex())
-    sig3 = schnorr_pre_sign(msg, seckey2, aux_rand, T1)
+    sig3 = schnorr_presig_sign(msg, seckey2, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
@@ -453,7 +453,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("sig2_sig:  " + sig3[33:65].hex())
     sig364 = schnorr_adapt(sig3, bytes_from_int(t1))
     print("sig2_64:  " + sig364.hex())
-    t31 = schnorr_extract_adaptor(sig3, sig364)
+    t31 = schnorr_extract_secadaptor(sig3, sig364)
     assert t1 == int_from_bytes(t31)
 
     print()
@@ -461,7 +461,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("msg1:  " + msg.hex())
     msg2 = message_encode_32bytes("test2")
     print("msg2:  " + msg2.hex())
-    sig4 = schnorr_pre_sign(msg2, seckey, aux_rand, T1)
+    sig4 = schnorr_presig_sign(msg2, seckey, aux_rand, T1)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
@@ -472,7 +472,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("sig2_sig:  " + sig4[33:65].hex())
     sig464 = schnorr_adapt(sig4, bytes_from_int(t1))
     print("sig2_64:  " + sig464.hex())
-    t41 = schnorr_extract_adaptor(sig4, sig464)
+    t41 = schnorr_extract_secadaptor(sig4, sig464)
     assert t1 == int_from_bytes(t41)
 
 if __name__ == "__main__":
