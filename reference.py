@@ -2,7 +2,7 @@
 # be used in production environments. The code is vulnerable to timing attacks,
 # for example.
 
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Union, Any
 import hashlib
 import binascii
 
@@ -140,15 +140,15 @@ def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: bytes) ->
         raise RuntimeError('Failure. This happens only with negligible probability.')
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
-    T = cpoint(T)
-    R0 = point_add(R, T) # elliptic curve point R0 = R + T
+    T_point = cpoint(T)
+    R0 = point_add(R, T_point) # elliptic curve point R0 = R + T
     if is_infinite(R0):
         raise RuntimeError('Failure. This happens only with negligible probability.')
-    k = n - k0 if not has_even_y(R0) else k0
-    e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n
-    sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n)
+    k = n - k0 if not has_even_y(R0) else k0 # type: ignore
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", bytes_from_point(R0) + bytes_from_point(P) + msg)) % n # type: ignore
+    sig = parity_from_point(R0) + bytes_from_point(R0) + bytes_from_int((k + e * d) % n) # type: ignore
     debug_print_vars()
-    if not schnorr_presig_verify(msg, T, bytes_from_point(P), sig):
+    if not schnorr_presig_verify(msg, T_point, bytes_from_point(P), sig):
         raise RuntimeError('The created signature does not pass verification.')
     return sig
 
@@ -163,7 +163,7 @@ def schnorr_presig_verify(msg: bytes, T: Point, pubkey: bytes, pre_sig: bytes) -
         return False
     return T0 == T
 
-def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[Point]:
+def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[Point, bool]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
@@ -296,8 +296,8 @@ def test_vectors() -> bool:
             if pubkey_hex != '' and msg_hex != '':
                 pubkey = bytes.fromhex(pubkey_hex)
                 msg = bytes.fromhex(msg_hex)
-                T = cpoint(bytes.fromhex(T_hex))
-                result_actual = schnorr_presig_verify(msg, T, pubkey, sig)
+                T_point = cpoint(bytes.fromhex(T_hex))
+                result_actual = schnorr_presig_verify(msg, T_point, pubkey, sig)
                 if result == result_actual:
                     print(' * Passed verification test.')
                 else:
@@ -369,7 +369,7 @@ def test_pre_sign_generation() -> bool:
     print("aux_rand:  " + aux_rand.hex())
     t = 2
     print("t:  " + bytes_from_int(t).hex())
-    T = compress_point(point_mul(G, t))
+    T = compress_point(point_mul(G, t)) # type: ignore
     assert T is not None
     print("T:  " + T.hex())
     sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
@@ -414,7 +414,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     seckey = bytes_from_int(1)
     aux_rand = bytes_from_int(1)
     t1 = 2
-    T1 = compress_point(point_mul(G, t1))
+    T1 = compress_point(point_mul(G, t1)) # type: ignore
     assert T1 is not None
     print("T1:  " + T1.hex())
     sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1)
@@ -428,7 +428,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     assert t1 == int_from_bytes(t11)
 
     t2 = 5
-    T2 = compress_point(point_mul(G, t2))
+    T2 = compress_point(point_mul(G, t2)) # type: ignore
     assert T2 is not None
     print("T2:  " + T2.hex())
     sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2)
@@ -478,6 +478,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("sig2_64:  " + sig464.hex())
     t41 = schnorr_extract_secadaptor(sig4, sig464)
     assert t1 == int_from_bytes(t41)
+    return True
 
 if __name__ == "__main__":
     test_pre_sign_generation()
