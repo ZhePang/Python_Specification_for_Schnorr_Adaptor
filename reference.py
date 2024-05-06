@@ -292,86 +292,136 @@ import csv
 import os
 import sys
 
-def test_vectors() -> bool:
+def presig_test_vectors() -> bool:
     all_passed = True
-    with open(os.path.join(sys.path[0], 'test_vectors.csv'), newline='') as csvfile:
+    with open(os.path.join(sys.path[0], 'vectors/presig_vectors.csv'), newline='') as csvfile:
         reader = csv.reader(csvfile)
         reader.__next__()
         for row in reader:
-            (index, seckey_hex, pubkey_hex, aux_rand_hex, msg_hex, T_hex, t_hex, sig_hex, sig64_hex, test_type_str, result_str, comment) = row
-            sig = bytes.fromhex(sig_hex)
+            (index, seckey_hex, pubkey_hex, aux_rand_hex, msg_hex, adaptor_hex, presig_hex, result_str, comment) = row
+            # ignores the last row which doesn't contain any test vectors
+            if index == '':
+                continue
+            pubkey = bytes.fromhex(pubkey_hex)
+            msg = bytes.fromhex(msg_hex)
+            adaptor = bytes.fromhex(adaptor_hex)
+            presig = bytes.fromhex(presig_hex)
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
             if seckey_hex != '':
-                pubkey = bytes.fromhex(pubkey_hex)
-                msg = bytes.fromhex(msg_hex)
                 seckey = bytes.fromhex(seckey_hex)
                 pubkey_actual = pubkey_gen(seckey, True)
                 if pubkey != pubkey_actual:
                     print(' * Failed key generation.')
                     print('   Expected key:', pubkey.hex().upper())
                     print('     Actual key:', pubkey_actual.hex().upper())
+                # `aux_rand` won't be a empty string when `seckey` is present
                 aux_rand = bytes.fromhex(aux_rand_hex)
-                T = bytes.fromhex(T_hex)
                 try:
-                    sig_actual = schnorr_presig_sign(msg, seckey, aux_rand, T)
-                    if sig == sig_actual:
+                    presig_actual = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
+                    if presig == presig_actual:
                         print(' * Passed signing test.')
                     else:
                         print(' * Failed signing test.')
-                        print('   Expected signature:', sig.hex().upper())
-                        print('     Actual signature:', sig_actual.hex().upper())
+                        print('   Expected pre-signature:', presig.hex().upper())
+                        print('     Actual pre-signature:', presig_actual.hex().upper())
                         all_passed = False
                 except RuntimeError as e:
                     print(' * Signing test raised exception:', e)
                     all_passed = False
-            if pubkey_hex != '' and msg_hex != '':
-                pubkey = bytes.fromhex(pubkey_hex)
-                msg = bytes.fromhex(msg_hex)
-                T_point = cpoint(bytes.fromhex(T_hex))
-                result_actual = schnorr_presig_verify(msg, T_point, pubkey, sig)
-                if result == result_actual:
-                    print(' * Passed verification test.')
-                else:
-                    print(' * Failed verification test.')
-                    print('   Expected verification result:', result)
-                    print('     Actual verification result:', result_actual)
-                    if comment:
-                        print('   Comment:', comment)
-                    all_passed = False
-            if sig64_hex != '' and t_hex != '':
-                sig64 = bytes.fromhex(sig64_hex)
-                t = bytes.fromhex(t_hex)
-                if test_type_str == "" or "Adaptor extraction" in test_type_str:
-                    adaptor = schnorr_extract_secadaptor(sig, sig64)
-                    result_actual = t == adaptor
-                    if result == result_actual:
-                        print(' * Passed adaptor extraction test.')
-                    else:
-                        print(' * Failed adaptor extraction test.')
-                        print('   Expected adaptor:', t.hex().upper())
-                        print('     Actual adaptor:', adaptor.hex().upper())
-                        if comment:
-                            print('   Comment:', comment)
-                        all_passed = False
-                if test_type_str == "" or "Adapting" in test_type_str:
-                    sig_actual = schnorr_adapt(sig, t)
-                    result_actual = sig64 == sig_actual
-                    if result == result_actual:
-                        print(' * Passed adapting test.')
-                    else:
-                        print(' * Failed adapting test.')
-                        print('   Expected adapted schnorr signature:', sig64.hex().upper())
-                        print('     Actual adapted schnorr signature:', sig_actual.hex().upper())
-                        if comment:
-                            print('   Comment:', comment)
-                        all_passed = False
+            result_actual = schnorr_presig_verify(msg, adaptor, pubkey, presig)
+            if result == result_actual:
+                print(' * Passed pre-signature verification test.')
+            else:
+                print(' * Failed  pre-signature verification test.')
+                print('   Expected pre-signature verification result:', result)
+                print('     Actual pre-signature verification result:', result_actual)
+                if comment:
+                    print('   Comment:', comment)
+                all_passed = False
     print()
-    if all_passed:
-        print('All test vectors passed.')
-    else:
-        print('Some test vectors failed.')
     return all_passed
+
+def adapt_test_vectors() -> bool:
+    all_passed = True
+    with open(os.path.join(sys.path[0], 'vectors/adapt_vectors.csv'), newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        reader.__next__()
+        for row in reader:
+            (index, pubkey_hex, msg_hex, secadaptor_hex, presig_hex, bip340sig_hex, result_str, comment) = row
+            # ignores the last row which doesn't contain any test vectors
+            if index == '':
+                continue
+            secadaptor = bytes.fromhex(secadaptor_hex)
+            presig = bytes.fromhex(presig_hex)
+            bip340sig = bytes.fromhex(bip340sig_hex)
+            msg = bytes.fromhex(msg_hex)
+            pubkey = bytes.fromhex(pubkey_hex)
+            result = result_str == 'TRUE'
+            print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
+            try:
+                bip340sig_actual = schnorr_adapt(presig, secadaptor)
+                if result == True and bip340sig == bip340sig_actual:
+                    print(' * Passed adapting test.')
+                elif result == False and bip340sig != bip340sig_actual:
+                    print(' * Passed adapting test.')
+                else:
+                    print(' * Failed adapting test.')
+                    print('   Expected BIP340 signature:', bip340sig.hex().upper())
+                    print('     Actual BIP340 signature:', bip340sig_actual.hex().upper())
+                    all_passed = False
+            except RuntimeError as e:
+                print(' * Adapting test raised exception:', e)
+                all_passed = False
+            result_actual = schnorr_verify(msg, pubkey, bip340sig)
+            if result == result_actual:
+                print(' * Passed adapt verification test.')
+            else:
+                print(' * Failed adapt verification test.')
+                print('   Expected adapt verification result:', result)
+                print('     Actual adapt verification result:', result_actual)
+                if comment:
+                    print('   Comment:', comment)
+                all_passed = False
+    print()
+    return all_passed
+
+def secadaptor_test_vectors() -> bool:
+    all_passed = True
+    with open(os.path.join(sys.path[0], 'vectors/secadaptor_vectors.csv'), newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        reader.__next__()
+        for row in reader:
+            (index, presig_hex, bip340sig_hex, secadaptor_hex, result_str, comment) = row
+            # ignores the last row which doesn't contain any test vectors
+            if index == '':
+                continue
+            presig = bytes.fromhex(presig_hex)
+            bip340sig = bytes.fromhex(bip340sig_hex)
+            secadaptor = bytes.fromhex(secadaptor_hex)
+            result = result_str == 'TRUE'
+            print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
+            secadaptor_actual = schnorr_extract_secadaptor(presig, bip340sig)
+            result_actual = secadaptor == secadaptor_actual
+            if result == result_actual:
+                print(' * Passed extract secadaptor test.')
+            else:
+                print(' * Failed extract secadaptor test.')
+                print('   Result given in the CSV file:', result)
+                print('   Actual result:', result_actual)
+                if comment:
+                    print('   Comment:', comment)
+                all_passed = False
+    print()
+    return all_passed
+
+def all_test_vectors() -> None:
+    test1 = presig_test_vectors()
+    test2 = adapt_test_vectors()
+    test3 = secadaptor_test_vectors()
+
+    if test1 and test2 and test3 :
+        print("All test vectors passed!")
 
 # Helper Functions
 
@@ -516,5 +566,4 @@ if __name__ == "__main__":
     print()
     test_pre_sign_nonce_without_auxrand()
     print()
-    # test_vectors()
     all_test_vectors()
