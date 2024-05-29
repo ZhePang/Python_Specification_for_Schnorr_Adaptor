@@ -200,14 +200,12 @@ def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[Plai
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
-    if sig[0] not in [0x02, 0x03]:
-        return False
     P = lift_x(int_from_bytes(pubkey))
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
         debug_print_vars()
         return False
-    R0 = lift_x(int_from_bytes(sig[1:33]))
+    R0 = cpoint(sig[0:33])
     if R0 is None:
         debug_print_vars()
         return False
@@ -216,11 +214,7 @@ def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[Plai
     if (R is None):
         debug_print_vars()
         return False
-    T = point_add(R0, point_negate(R))
-    if sig[0] == 2:
-        pass
-    elif sig[0] == 3:
-        T = point_negate(T)
+    T = point_add(R0, point_negate(R)) if has_even_y(R0) else point_add(R0, R)
     if (T is None):
         debug_print_vars()
         return False
