@@ -145,15 +145,12 @@ def vector4():
 #todo modify the below two test vectors of R' after its parsing gets finalized (cpoint or lift_x)
 
 # presig[1:33] (R'.x) is not on the curve
-# Purpose: `lift_x(R0)` will fail
+# Purpose: The lift_x(R') call inside cpoint(R') will fail
 def vector5():
     seckey = default_seckey
     msg = default_msg
     adaptor = pubkey_gen(default_secadaptor, False)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
-    # We need to make R'.x invalid (32-byte) instead of an invalid 33-byte,
-    # because the extract_adaptor API interprets R' as an x-only pubkey
-    # rather than a regular compressed EC pubkey
     rx = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     presig = presig[0:1] + rx + presig[33:]
     assert(lift_x(int_from_bytes(presig[1:33])) is None)
@@ -161,7 +158,7 @@ def vector5():
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] is not on the curve")
 
 # presig[1:33] (R'.x) is equal to field size
-# Purpose: `lift_x(R0)` will fail
+# Purpose: The lift_x(R') call inside cpoint(R') will fail
 def vector6():
     seckey = default_seckey
     msg = default_msg
@@ -173,9 +170,21 @@ def vector6():
 
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] equal to field size")
 
+# The parity of R' is invalid
+# Purpose: The cpoint(R') will fail
+def vector7():
+    seckey = default_seckey
+    msg = default_msg
+    adaptor = pubkey_gen(default_secadaptor, False)
+    presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
+    presig = b'\x04' + presig[1:]
+    assert(cpoint(presig[0:33]) is None)
+
+    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is invalid")
+
 # parity of R' is flipped
 # Purpose: `adaptor_expected == adaptor` check in `presig_verify` will fail
-def vector7():
+def vector8():
     seckey = default_seckey
     pubkey = pubkey_gen(seckey, True)
     msg = default_msg
@@ -192,15 +201,13 @@ def vector7():
     assert (adaptor != extracted_adaptor)
     assert (T1 == point_negate(T2))
 
-    return (None, pubkey, None, msg, adaptor, presig, "FALSE", "negated presig[0:33] value")
-
-# todo: add test vector containing invalid parity byte (like 4, 5) for R'
+    return (None, pubkey, None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is negated")
 
 # It's cryptographically impossible to create a test vector that fails if run
 # in an implementation which merely misses the check that presig[32:64] is smaller
 # than the curve order. This test vector just increases test coverage.
 # Purpose: hits the `s0 >= n` check
-def vector8():
+def vector9():
     seckey = default_seckey
     msg = default_msg
     adaptor = pubkey_gen(default_secadaptor, False)
@@ -212,7 +219,7 @@ def vector8():
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[33:65] is equal to the curve order")
 
 
-def vector9():
+def vector10():
     seckey = default_seckey
     adaptor = pubkey_gen(default_secadaptor, False)
     msg = int_from_bytes(default_msg)
@@ -220,7 +227,7 @@ def vector9():
     presig = schnorr_presig_sign(neg_msg, seckey, default_aux_rand, adaptor)
     return (None, pubkey_gen(seckey, True), None, bytes_from_int(msg), adaptor, presig, "FALSE", "negated message")
 
-def vector10():
+def vector11():
     seckey = default_seckey
     adaptor = pubkey_gen(default_secadaptor, False)
     msg = default_msg
@@ -231,7 +238,7 @@ def vector10():
 
 # create a pre-signature  with k = 0
 # Purpose: hits the `R0 is None` check
-def vector11():
+def vector12():
     seckey = default_seckey
     msg = default_msg
     k = 0
@@ -243,7 +250,7 @@ def vector11():
 
 # create pre-signature with t = 0
 # Purpose: hits the `T is None` check
-def vector12():
+def vector13():
     seckey = default_seckey
     msg = default_msg
     t = 0
@@ -256,7 +263,7 @@ def vector12():
 
 # create pre-signature with k = 0 and t = 0
 # Purpose: improve test coverage
-def vector13():
+def vector14():
     seckey = default_seckey
     msg = default_msg
     k, t = 0, 0
@@ -269,7 +276,7 @@ def vector13():
 # `schnorr_adapt` test vectors
 #
 
-def vector14():
+def vector15():
     seckey = default_seckey
     aux_rand = default_aux_rand
     secadaptor = default_secadaptor
@@ -292,7 +299,7 @@ def vector14():
 # pre-signature where presig[0] is 0x03
 # Purpose: hits the `s = (s0 - t) % n` branch in `schnorr_adapt`
 #          hits the `t = (s0 - s) % n` branch in `schnorr_extract_secadaptor`
-def vector15(vectype):
+def vector16(vectype):
     msg = bytes_from_int(0x389575B92B586BE2730A998241E5CF651D6C191FA64EEA3D00256AFF7D18484F)
     aux_rand = bytes_from_int(0x20E71D6198A2D8096D44180BC0E0D02D8B215AE6F1311AD1F03B6040E4C41889)
     seckey = bytes_from_int(0x84BCB0C86AF195C590A04C5E97D2D17EDB2A35A82A162D2C0CB2E0923629FC8B)
@@ -310,7 +317,7 @@ def vector15(vectype):
 # adapt the pre-signature where presig[0] is 0x02
 # Purpose: hits the `s = (s0 + t) % n` branch in `schnorr_adapt`
 #          hits the `t = (s - s0) % n` branch in `schnorr_extract_secadaptor`
-def vector16(vectype):
+def vector17(vectype):
     msg = bytes_from_int(0x2F4E505E2C70E81B94431800F810ECB04FD0AAEEB0C703F8DCE44EEDFA0AB8C2)
     aux_rand = bytes_from_int(0xFBCB7B7E86899D0D4BE438F415746F39CA19CD0C43721632B2CE19D37C211382)
     seckey = bytes_from_int(0xDBF97DE24E9197B78F6166B15B870A85DB1337099393F85E07A521919740B1EF)
@@ -327,7 +334,7 @@ def vector16(vectype):
 
 #todo: we should adapt the neg_presig, not the presig
 #todo: how does this affect the extract_secadaptor?
-def vector17(vectype):
+def vector18(vectype):
     msg = default_msg
     seckey = default_seckey
     aux_rand = default_aux_rand
@@ -341,7 +348,7 @@ def vector17(vectype):
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "FALSE", "extract secadaptor from bip340 signature created by adapting a pre-signature with negated s' value")
 
-def vector18(vectype):
+def vector19(vectype):
     msg = default_msg
     seckey = default_seckey
     aux_rand = default_aux_rand
@@ -394,13 +401,13 @@ if __name__ == "__main__":
     presig_vectors = [
         vector0(), vector1(), vector2(), vector3(), vector4(),
         vector5(), vector6(), vector7(), vector8(), vector9(),
-        vector10(), vector11(), vector12(), vector13()
+        vector10(), vector11(), vector12(), vector13(), vector14()
     ]
     adapt_vectors = [
-        vector14(), vector15('adapt'), vector16('adapt'), vector17('adapt'), vector18('adapt')
+        vector15(), vector16('adapt'), vector17('adapt'), vector18('adapt'), vector19('adapt')
     ]
     secadaptor_vectors = [
-        vector15('secadaptor'), vector16('secadaptor'), vector17('secadaptor'), vector18('secadaptor')
+        vector16('secadaptor'), vector17('secadaptor'), vector18('secadaptor'), vector19('secadaptor')
     ]
 
     presig_vectors_hex = [vector_to_hex(vector) for vector in presig_vectors]
