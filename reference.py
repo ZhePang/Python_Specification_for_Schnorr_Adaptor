@@ -98,12 +98,15 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
         return P
     return (x(P), p - y(P))
 
-def cpoint(x: bytes) -> Point:
+# parses compressed point (33-bytes array) into the `Point` type
+# Returns `None` for invalid inputs
+def cpoint(x: bytes) -> Optional[Point]:
     if len(x) != 33:
         raise ValueError('x is not a valid compressed point.')
     P = lift_x(int_from_bytes(x[1:33]))
     if P is None:
-        raise ValueError('x is not a valid compressed point.')
+        # invalid x-coordinate
+        return None
     if x[0] == 2:
         return P
     elif x[0] == 3:
@@ -111,7 +114,8 @@ def cpoint(x: bytes) -> Point:
         assert P is not None
         return P
     else:
-        raise ValueError('x is not a valid compressed point.')
+        # invalid parity
+        return None
 
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
@@ -172,6 +176,7 @@ def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: PlainPk) 
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
     T_point = cpoint(T)
+    assert T_point is not None
     R0 = point_add(R, T_point) # elliptic curve point R0 = R + T
     if R0 is None: # fail if point at infinity
         raise RuntimeError('Failure. This happens only with negligible probability.')
