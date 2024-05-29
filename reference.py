@@ -415,7 +415,7 @@ def secadaptor_test_vectors() -> bool:
     print()
     return all_passed
 
-def all_test_vectors() -> None:
+def run_test_vectors() -> None:
     test1 = presig_test_vectors()
     test2 = adapt_test_vectors()
     test3 = secadaptor_test_vectors()
@@ -568,4 +568,4 @@ if __name__ == "__main__":
     print()
     test_pre_sign_nonce_without_auxrand()
     print()
-    all_test_vectors()
+    run_test_vectors()
