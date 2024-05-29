@@ -302,9 +302,9 @@ def presig_test_vectors() -> bool:
             # ignores the last row which doesn't contain any test vectors
             if index == '':
                 continue
-            pubkey = bytes.fromhex(pubkey_hex)
+            pubkey = XonlyPk(bytes.fromhex(pubkey_hex))
             msg = bytes.fromhex(msg_hex)
-            adaptor = bytes.fromhex(adaptor_hex)
+            adaptor = PlainPk(bytes.fromhex(adaptor_hex))
             presig = bytes.fromhex(presig_hex)
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
@@ -356,7 +356,7 @@ def adapt_test_vectors() -> bool:
             presig = bytes.fromhex(presig_hex)
             bip340sig = bytes.fromhex(bip340sig_hex)
             msg = bytes.fromhex(msg_hex)
-            pubkey = bytes.fromhex(pubkey_hex)
+            pubkey = XonlyPk(bytes.fromhex(pubkey_hex))
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
             try:
@@ -450,7 +450,7 @@ def test_pre_sign_generation() -> bool:
     print("t:  " + bytes_from_int(t).hex())
     T_point = point_mul(G, t)
     assert T_point is not None
-    T_bytes = cbytes(T_point)
+    T_bytes = PlainPk(cbytes(T_point))
     print("T_bytes:  " + T_bytes.hex())
     sig = schnorr_presig_sign(msg, seckey, aux_rand, T_bytes)
     print("sig:  " + sig.hex())
@@ -473,7 +473,7 @@ def test_pre_sign_nonce() -> bool:
     print("seckey:  " + seckey.hex())
     aux_rand = generate_aux_rand()
     print("aux_rand:  " + aux_rand.hex())
-    T = cbytes((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7))
+    T = PlainPk(cbytes((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7)))
     print("T:  " + T.hex())
     sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
@@ -495,7 +495,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     t1 = 2
     T1_point = point_mul(G, t1)
     assert T1_point is not None
-    T1_bytes = cbytes(T1_point)
+    T1_bytes = PlainPk(cbytes(T1_point))
     print("T1_bytes:  " + T1_bytes.hex())
     sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1_bytes)
     print("sig1_parity:  " + sig1[0:1].hex())
@@ -510,7 +510,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     t2 = 5
     T2_point = point_mul(G, t2)
     assert T2_point is not None
-    T2_bytes = cbytes(T2_point)
+    T2_bytes = PlainPk(cbytes(T2_point))
     print("T2_bytes:  " + T2_bytes.hex())
     sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2_bytes)
     print("sig2_parity:  " + sig2[0:1].hex())
