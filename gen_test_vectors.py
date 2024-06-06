@@ -195,8 +195,9 @@ def vector8():
     presig = neg_parity + presig[1:]
 
     # check if flipping R'.y also flips the y-coordinate of adaptor
-    T1 = cpoint(adaptor)
     extracted_adaptor = schnorr_extract_adaptor(msg, pubkey, presig)
+    assert extracted_adaptor is not None
+    T1 = cpoint(adaptor)
     T2 = cpoint(extracted_adaptor)
     assert (adaptor != extracted_adaptor)
     assert (T1 == point_negate(T2))

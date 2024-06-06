@@ -196,11 +196,11 @@ def schnorr_presig_verify(msg: bytes, adaptor: PlainPk, pubkey: XonlyPk, presig:
     if len(presig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     adaptor_expected = schnorr_extract_adaptor(msg, pubkey, presig)
-    if (adaptor_expected is False):
+    if (adaptor_expected is None):
         return False
     return adaptor_expected == adaptor
 
-def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[PlainPk, bool]:
+def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[PlainPk]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
@@ -209,20 +209,20 @@ def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[Plai
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
         debug_print_vars()
-        return False
+        return None
     R0 = cpoint(sig[0:33])
     if R0 is None:
         debug_print_vars()
-        return False
+        return None
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + xbytes(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
     if (R is None):
         debug_print_vars()
-        return False
+        return None
     T = point_add(R0, point_negate(R)) if has_even_y(R0) else point_add(R0, R)
     if (T is None):
         debug_print_vars()
-        return False
+        return None
     return PlainPk(cbytes(T))
 
 def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
