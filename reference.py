@@ -98,12 +98,15 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
         return P
     return (x(P), p - y(P))
 
-def cpoint(x: bytes) -> Point:
+# parses compressed point (33-bytes array) into the `Point` type
+# Returns `None` for invalid inputs
+def cpoint(x: bytes) -> Optional[Point]:
     if len(x) != 33:
         raise ValueError('x is not a valid compressed point.')
     P = lift_x(int_from_bytes(x[1:33]))
     if P is None:
-        raise ValueError('x is not a valid compressed point.')
+        # invalid x-coordinate
+        return None
     if x[0] == 2:
         return P
     elif x[0] == 3:
@@ -111,7 +114,8 @@ def cpoint(x: bytes) -> Point:
         assert P is not None
         return P
     else:
-        raise ValueError('x is not a valid compressed point.')
+        # invalid parity
+        return None
 
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
@@ -172,12 +176,13 @@ def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: PlainPk) 
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
     T_point = cpoint(T)
+    assert T_point is not None
     R0 = point_add(R, T_point) # elliptic curve point R0 = R + T
-    if is_infinite(R0):
+    if R0 is None: # fail if point at infinity
         raise RuntimeError('Failure. This happens only with negligible probability.')
-    k = n - k0 if not has_even_y(R0) else k0 # type: ignore
-    e = int_from_bytes(tagged_hash("BIP0340/challenge", xbytes(R0) + xbytes(P) + msg)) % n # type: ignore
-    sig = cbytes(R0) + bytes_from_int((k + e * d) % n) # type: ignore
+    k = n - k0 if not has_even_y(R0) else k0
+    e = int_from_bytes(tagged_hash("BIP0340/challenge", xbytes(R0) + xbytes(P) + msg)) % n
+    sig = cbytes(R0) + bytes_from_int((k + e * d) % n)
     debug_print_vars()
     if not schnorr_presig_verify(msg, T, XonlyPk(xbytes(P)), sig):
         raise RuntimeError('The created signature does not pass verification.')
@@ -191,39 +196,33 @@ def schnorr_presig_verify(msg: bytes, adaptor: PlainPk, pubkey: XonlyPk, presig:
     if len(presig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     adaptor_expected = schnorr_extract_adaptor(msg, pubkey, presig)
-    if (adaptor_expected is False):
+    if (adaptor_expected is None):
         return False
     return adaptor_expected == adaptor
 
-def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[PlainPk, bool]:
+def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[PlainPk]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
-    if sig[0] not in [0x02, 0x03]:
-        return False
     P = lift_x(int_from_bytes(pubkey))
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
         debug_print_vars()
-        return False
-    R0 = lift_x(int_from_bytes(sig[1:33]))
+        return None
+    R0 = cpoint(sig[0:33])
     if R0 is None:
         debug_print_vars()
-        return False
+        return None
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + xbytes(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
     if (R is None):
         debug_print_vars()
-        return False
-    T = point_add(R0, point_negate(R))
-    if sig[0] == 2:
-        pass
-    elif sig[0] == 3:
-        T = point_negate(T)
+        return None
+    T = point_add(R0, point_negate(R)) if has_even_y(R0) else point_add(R0, R)
     if (T is None):
         debug_print_vars()
-        return False
+        return None
     return PlainPk(cbytes(T))
 
 def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
@@ -302,9 +301,9 @@ def presig_test_vectors() -> bool:
             # ignores the last row which doesn't contain any test vectors
             if index == '':
                 continue
-            pubkey = bytes.fromhex(pubkey_hex)
+            pubkey = XonlyPk(bytes.fromhex(pubkey_hex))
             msg = bytes.fromhex(msg_hex)
-            adaptor = bytes.fromhex(adaptor_hex)
+            adaptor = PlainPk(bytes.fromhex(adaptor_hex))
             presig = bytes.fromhex(presig_hex)
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
@@ -356,7 +355,7 @@ def adapt_test_vectors() -> bool:
             presig = bytes.fromhex(presig_hex)
             bip340sig = bytes.fromhex(bip340sig_hex)
             msg = bytes.fromhex(msg_hex)
-            pubkey = bytes.fromhex(pubkey_hex)
+            pubkey = XonlyPk(bytes.fromhex(pubkey_hex))
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
             try:
@@ -415,7 +414,7 @@ def secadaptor_test_vectors() -> bool:
     print()
     return all_passed
 
-def all_test_vectors() -> None:
+def run_test_vectors() -> None:
     test1 = presig_test_vectors()
     test2 = adapt_test_vectors()
     test3 = secadaptor_test_vectors()
@@ -448,10 +447,11 @@ def test_pre_sign_generation() -> bool:
     print("aux_rand:  " + aux_rand.hex())
     t = 2
     print("t:  " + bytes_from_int(t).hex())
-    T = cbytes(point_mul(G, t)) # type: ignore
-    assert T is not None
-    print("T:  " + T.hex())
-    sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
+    T_point = point_mul(G, t)
+    assert T_point is not None
+    T_bytes = PlainPk(cbytes(T_point))
+    print("T_bytes:  " + T_bytes.hex())
+    sig = schnorr_presig_sign(msg, seckey, aux_rand, T_bytes)
     print("sig:  " + sig.hex())
     print("sig_parity:  " + sig[0:1].hex())
     print("sig_R:  " + sig[1:33].hex())
@@ -472,8 +472,7 @@ def test_pre_sign_nonce() -> bool:
     print("seckey:  " + seckey.hex())
     aux_rand = generate_aux_rand()
     print("aux_rand:  " + aux_rand.hex())
-    T = cbytes((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7))
-    assert T is not None
+    T = PlainPk(cbytes((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7)))
     print("T:  " + T.hex())
     sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
     print("sig:  " + sig.hex())
@@ -493,10 +492,11 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     seckey = bytes_from_int(1)
     aux_rand = bytes_from_int(1)
     t1 = 2
-    T1 = cbytes(point_mul(G, t1)) # type: ignore
-    assert T1 is not None
-    print("T1:  " + T1.hex())
-    sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1)
+    T1_point = point_mul(G, t1)
+    assert T1_point is not None
+    T1_bytes = PlainPk(cbytes(T1_point))
+    print("T1_bytes:  " + T1_bytes.hex())
+    sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1_bytes)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
@@ -507,10 +507,11 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     assert t1 == int_from_bytes(t11)
 
     t2 = 5
-    T2 = cbytes(point_mul(G, t2)) # type: ignore
-    assert T2 is not None
-    print("T2:  " + T2.hex())
-    sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2)
+    T2_point = point_mul(G, t2)
+    assert T2_point is not None
+    T2_bytes = PlainPk(cbytes(T2_point))
+    print("T2_bytes:  " + T2_bytes.hex())
+    sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2_bytes)
     print("sig2_parity:  " + sig2[0:1].hex())
     print("sig2_R:  " + sig2[1:33].hex())
     print(has_even_y(cpoint(sig2[0:33])))
@@ -525,7 +526,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("seckey1:  " + seckey.hex())
     seckey2 = bytes_from_int(2)
     print("seckey2:  " + seckey2.hex())
-    sig3 = schnorr_presig_sign(msg, seckey2, aux_rand, T1)
+    sig3 = schnorr_presig_sign(msg, seckey2, aux_rand, T1_bytes)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
@@ -544,7 +545,7 @@ def test_pre_sign_nonce_without_auxrand() -> bool:
     print("msg1:  " + msg.hex())
     msg2 = message_encode_32bytes("test2")
     print("msg2:  " + msg2.hex())
-    sig4 = schnorr_presig_sign(msg2, seckey, aux_rand, T1)
+    sig4 = schnorr_presig_sign(msg2, seckey, aux_rand, T1_bytes)
     print("sig1_parity:  " + sig1[0:1].hex())
     print("sig1_R:  " + sig1[1:33].hex())
     print(has_even_y(cpoint(sig1[0:33])))
@@ -566,4 +567,4 @@ if __name__ == "__main__":
     print()
     test_pre_sign_nonce_without_auxrand()
     print()
-    all_test_vectors()
+    run_test_vectors()
