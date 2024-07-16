@@ -129,6 +129,23 @@ def vector3():
 
     return (None, pubkey, None, msg, adaptor, presig, "FALSE", "public key not on the curve")
 
+# Check that calling `try_fn` raises a `exception`. If `exception` is raised,
+# examine it with `except_fn`.
+def assert_raises(exception, try_fn, except_fn):
+    raised = False
+    try:
+        try_fn()
+    except exception as e:
+        raised = True
+        assert(except_fn(e))
+    except BaseException:
+        raise AssertionError("Wrong exception raised in a test.")
+    if not raised:
+        raise AssertionError("Exception was _not_ raised in a test where it was required.")
+
+exception = ValueError
+except_fn = lambda e: str(e) == 'x is not a valid compressed point.'
+
 # x-coordinate of public key equal to field size
 # Purpose: `lift_x(pubkey)` will fail
 def vector4():
@@ -142,7 +159,6 @@ def vector4():
 
     return (None, pubkey, None, msg, adaptor, presig, "FALSE", "x-coordinate of public key equal to field size")
 
-#todo modify the below two test vectors of R' after its parsing gets finalized (cpoint or lift_x)
 
 # presig[1:33] (R'.x) is not on the curve
 # Purpose: The lift_x(R') call inside cpoint(R') will fail
@@ -154,6 +170,7 @@ def vector5():
     rx = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     presig = presig[0:1] + rx + presig[33:]
     assert(lift_x(int_from_bytes(presig[1:33])) is None)
+    assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] is not on the curve")
 
@@ -167,6 +184,7 @@ def vector6():
 
     presig = presig[0:1] + bytes_from_int(p) + presig[33:]
     assert(lift_x(int_from_bytes(presig[1:33])) is None)
+    assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] equal to field size")
 
@@ -178,7 +196,7 @@ def vector7():
     adaptor = pubkey_gen(default_secadaptor, False)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
     presig = b'\x04' + presig[1:]
-    assert(cpoint(presig[0:33]) is None)
+    assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is invalid")
 
@@ -202,7 +220,7 @@ def vector8():
     assert (adaptor != extracted_adaptor)
     assert (T1 == point_negate(T2))
 
-    return (None, pubkey, None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is negated")
+    return (None, pubkey, None, msg, adaptor, presig, "FALSE", "The LSB of the first byte of presig (parity byte) is flipped")
 
 # It's cryptographically impossible to create a test vector that fails if run
 # in an implementation which merely misses the check that presig[32:64] is smaller
@@ -270,6 +288,7 @@ def vector14():
     k, t = 0, 0
     presig = insecure_schnorr_presig_sign(msg, seckey, k, t)
     adaptor = cbytes_ext(infinity)
+    assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
     return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "R' - (s'G - eP) is infinite")
 

@@ -104,18 +104,16 @@ def cpoint(x: bytes) -> Optional[Point]:
     if len(x) != 33:
         raise ValueError('x is not a valid compressed point.')
     P = lift_x(int_from_bytes(x[1:33]))
-    if P is None:
-        # invalid x-coordinate
-        return None
+    if P is None: # invalid x-coordinate
+        raise ValueError('x is not a valid compressed point.')
     if x[0] == 2:
         return P
     elif x[0] == 3:
         P = point_negate(P)
         assert P is not None
         return P
-    else:
-        # invalid parity
-        return None
+    else: # invalid parity
+        raise ValueError('x is not a valid compressed point.')
 
 def int_from_bytes(b: bytes) -> int:
     return int.from_bytes(b, byteorder="big")
@@ -210,9 +208,9 @@ def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[P
     if (P is None) or (s0 >= n):
         debug_print_vars()
         return None
-    R0 = cpoint(sig[0:33])
-    if R0 is None:
-        debug_print_vars()
+    try:
+        R0 = cpoint(sig[0:33])
+    except Exception:
         return None
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + xbytes(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
