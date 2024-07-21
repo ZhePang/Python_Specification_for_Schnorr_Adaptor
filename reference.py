@@ -98,11 +98,13 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
         return P
     return (x(P), p - y(P))
 
-def cpoint(x: bytes) -> Point:
+# parses compressed point (33-bytes array) into the `Point` type
+# Returns `None` for invalid inputs
+def cpoint(x: bytes) -> Optional[Point]:
     if len(x) != 33:
         raise ValueError('x is not a valid compressed point.')
     P = lift_x(int_from_bytes(x[1:33]))
-    if P is None:
+    if P is None: # invalid x-coordinate
         raise ValueError('x is not a valid compressed point.')
     if x[0] == 2:
         return P
@@ -110,7 +112,7 @@ def cpoint(x: bytes) -> Point:
         P = point_negate(P)
         assert P is not None
         return P
-    else:
+    else: # invalid parity
         raise ValueError('x is not a valid compressed point.')
 
 def int_from_bytes(b: bytes) -> int:
@@ -172,6 +174,7 @@ def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: PlainPk) 
     R = point_mul(G, k0) # elliptic curve point R=rG
     assert R is not None
     T_point = cpoint(T)
+    assert T_point is not None
     R0 = point_add(R, T_point) # elliptic curve point R0 = R + T
     if R0 is None: # fail if point at infinity
         raise RuntimeError('Failure. This happens only with negligible probability.')
@@ -191,39 +194,33 @@ def schnorr_presig_verify(msg: bytes, adaptor: PlainPk, pubkey: XonlyPk, presig:
     if len(presig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
     adaptor_expected = schnorr_extract_adaptor(msg, pubkey, presig)
-    if (adaptor_expected is False):
+    if (adaptor_expected is None):
         return False
     return adaptor_expected == adaptor
 
-def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Union[PlainPk, bool]:
+def schnorr_extract_adaptor(msg: bytes, pubkey: bytes, sig: bytes) -> Optional[PlainPk]:
     if len(pubkey) != 32:
         raise ValueError('The public key must be a 32-byte array.')
     if len(sig) != 65:
         raise ValueError('The signature must be a 65-byte array.')
-    if sig[0] not in [0x02, 0x03]:
-        return False
     P = lift_x(int_from_bytes(pubkey))
     s0 = int_from_bytes(sig[33:65])
     if (P is None) or (s0 >= n):
         debug_print_vars()
-        return False
-    R0 = lift_x(int_from_bytes(sig[1:33]))
-    if R0 is None:
-        debug_print_vars()
-        return False
+        return None
+    try:
+        R0 = cpoint(sig[0:33])
+    except Exception:
+        return None
     e = int_from_bytes(tagged_hash("BIP0340/challenge", sig[1:33] + xbytes(P) + msg)) % n
     R = point_add(point_mul(G, s0), point_mul(P, n - e))
     if (R is None):
         debug_print_vars()
-        return False
-    T = point_add(R0, point_negate(R))
-    if sig[0] == 2:
-        pass
-    elif sig[0] == 3:
-        T = point_negate(T)
+        return None
+    T = point_add(R0, point_negate(R)) if has_even_y(R0) else point_add(R0, R)
     if (T is None):
         debug_print_vars()
-        return False
+        return None
     return PlainPk(cbytes(T))
 
 def schnorr_adapt(sig: bytes, adaptor: bytes) -> bytes:
