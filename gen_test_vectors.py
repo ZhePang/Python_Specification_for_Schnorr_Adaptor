@@ -391,9 +391,17 @@ def print_csv(vectors, vectype):
     writer.writerow(footers[vectype])
 
 if __name__ == "__main__":
-    presig_vectors = [vector0(), vector1(), vector2(), vector3(), vector4(), vector5(), vector6(), vector7(), vector8(), vector9(), vector10(), vector11(), vector12(), vector13()]
-    adapt_vectors = [vector14(), vector15('adapt'), vector16('adapt'), vector17('adapt'), vector18('adapt')]
-    secadaptor_vectors = [vector15('secadaptor'), vector16('secadaptor'), vector17('secadaptor'), vector18('secadaptor')]
+    presig_vectors = [
+        vector0(), vector1(), vector2(), vector3(), vector4(),
+        vector5(), vector6(), vector7(), vector8(), vector9(),
+        vector10(), vector11(), vector12(), vector13()
+    ]
+    adapt_vectors = [
+        vector14(), vector15('adapt'), vector16('adapt'), vector17('adapt'), vector18('adapt')
+    ]
+    secadaptor_vectors = [
+        vector15('secadaptor'), vector16('secadaptor'), vector17('secadaptor'), vector18('secadaptor')
+    ]
 
     presig_vectors_hex = [vector_to_hex(vector) for vector in presig_vectors]
     adapt_vectors_hex = [vector_to_hex(vector) for vector in adapt_vectors]
