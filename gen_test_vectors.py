@@ -305,8 +305,7 @@ def vector15():
     neg_msg = bytes_from_int(n - msg)
     presig_neg = schnorr_presig_sign(neg_msg, seckey, aux_rand, adaptor)
     bip340sig = schnorr_adapt(presig_neg, secadaptor)
-    presig = schnorr_presig_sign(bytes_from_int(msg), seckey, aux_rand, adaptor)
-    return (pubkey_gen(seckey, True), bytes_from_int(msg), secadaptor, presig, bip340sig, "FALSE", "create bip340 signature using a pre-signature with negated message")
+    return (pubkey_gen(seckey, True), bytes_from_int(msg), secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature generated on negated message")
 
 #
 # `schnorr_extract_secadaptor` and `schnorr_adapt` test vectors
@@ -330,7 +329,7 @@ def vector16(vectype):
     assert presig[:1] == b'\x03'
     bip340sig = schnorr_adapt(presig, secadaptor)
     if vectype == 'adapt':
-        return (pubkey, msg, secadaptor, presig, bip340sig, "TRUE", "create bip340-signature using a pre-signature whose first byte is 0x03")
+        return (pubkey, msg, secadaptor, presig, bip340sig, "TRUE", "adapt a pre-signature whose first byte is 0x03")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "TRUE", "extract secadaptor from a pre-signature whose first byte is 0x03")
 
@@ -348,7 +347,7 @@ def vector17(vectype):
     assert presig[:1] == b'\x02'
     bip340sig = schnorr_adapt(presig, secadaptor)
     if vectype == 'adapt':
-        return (pubkey, msg, secadaptor, presig, bip340sig, "TRUE", "create bip340-signature using a pre-signature whose first byte is 0x02")
+        return (pubkey, msg, secadaptor, presig, bip340sig, "TRUE", "adapt a pre-signature whose first byte is 0x02")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "TRUE", "extract secadaptor from a pre-signature whose first byte is 0x02")
 
@@ -364,7 +363,7 @@ def vector18(vectype):
     presig_neg = presig[0:33] + bytes_from_int(n - int_from_bytes(presig[33:65]))
     bip340sig = schnorr_adapt(presig_neg, secadaptor)
     if vectype == 'adapt':
-        return (pubkey_gen(seckey, True), msg, secadaptor, presig, bip340sig, "FALSE", "create bip340 signature using a pre-signature with negated s' value")
+        return (pubkey_gen(seckey, True), msg, secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature with negated s' value")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "FALSE", "extract secadaptor from bip340 signature created by adapting a pre-signature with negated s' value")
 
@@ -380,7 +379,7 @@ def vector19(vectype):
     neg_presig = neg_parity + presig[1:]
     bip340sig = schnorr_adapt(neg_presig, secadaptor)
     if vectype == 'adapt':
-        return (pubkey_gen(seckey, True), msg, secadaptor, presig, bip340sig, "FALSE", "create bip340-signature using a pre-signature with negated R' value")
+        return (pubkey_gen(seckey, True), msg, secadaptor, neg_presig, bip340sig, "FALSE", "adapt a pre-signature with negated R' value")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "FALSE", "extract secadaptor from bip340 signature created by adapting a pre-signature with negated R' value")
 
@@ -401,21 +400,22 @@ def vector_to_hex(vector):
 
 def print_csv(vectors, vectype):
     writer = csv.writer(sys.stdout)
-    headers = {
+    header_row = {
         "presig": ("index", "secret key", "public key", "aux_rand", "message", "adaptor", "pre-signature", "result", "comment"),
         "adapt": ("index", "pubkey", "message", "secadaptor", "pre-signature", "BIP340 signature", "result", "comment"),
         "secadaptor": ("index", "pre-signature", "BIP340 signature", "secadaptor", "result", "comment")
     }
-    writer.writerow(headers[vectype])
+    writer.writerow(header_row[vectype])
+
+    side_note = {
+        "presig": ("", "", "", "", "", "", "", "", "The result column represents the output of schnorr_presig_verify()"),
+        "adapt": ("", "", "", "", "", "", "", "The result column represents the output of schnorr_verify() on the adapted pre-signature"),
+        "secadaptor": ("", "", "", "", "", "The result column represents the output of secadaptor == schnorr_extract_secadaptor()")
+    }
+    writer.writerow(side_note[vectype])
 
     for (i, vector) in enumerate(vectors):
         writer.writerow((i,) + vector)
-    footers = {
-        "presig": ("", "", "", "", "", "", "", "", "The result column represents the output of schnorr_presig_verify() function call on the test vector"),
-        "adapt": ("", "", "", "", "", "", "", "The result column represents the output both [1] schnorr_verify() function call and [2] bip340sig == schnorr_adapt() check on the test vector"),
-        "secadaptor": ("", "", "", "", "", "The result column contains the output of the check secadaptor == schnorr_extract_secadaptor() on the test vector")
-    }
-    writer.writerow(footers[vectype])
 
 if __name__ == "__main__":
     presig_vectors = [
