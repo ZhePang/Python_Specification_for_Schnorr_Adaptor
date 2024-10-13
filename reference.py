@@ -98,9 +98,7 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
         return P
     return (x(P), p - y(P))
 
-# parses compressed point (33-bytes array) into the `Point` type
-# Returns `None` for invalid inputs
-def cpoint(x: bytes) -> Optional[Point]:
+def cpoint(x: bytes) -> Point:
     if len(x) != 33:
         raise ValueError('x is not a valid compressed point.')
     P = lift_x(int_from_bytes(x[1:33]))
@@ -356,27 +354,23 @@ def adapt_test_vectors() -> bool:
             pubkey = XonlyPk(bytes.fromhex(pubkey_hex))
             result = result_str == 'TRUE'
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
-            try:
-                bip340sig_actual = schnorr_adapt(presig, secadaptor)
-                if result == True and bip340sig == bip340sig_actual:
-                    print(' * Passed adapting test.')
-                elif result == False and bip340sig != bip340sig_actual:
-                    print(' * Passed adapting test.')
-                else:
-                    print(' * Failed adapting test.')
-                    print('   Expected BIP340 signature:', bip340sig.hex().upper())
-                    print('     Actual BIP340 signature:', bip340sig_actual.hex().upper())
-                    all_passed = False
-            except RuntimeError as e:
-                print(' * Adapting test raised exception:', e)
+
+            bip340sig_actual = schnorr_adapt(presig, secadaptor)
+            if bip340sig == bip340sig_actual:
+                print(' * Adapted the pre-signature successfully!')
+            else:
+                print(' * Failed to adapt the pre-signature.')
+                print('   Expected BIP340 signature:', bip340sig.hex().upper())
+                print('     Actual BIP340 signature:', bip340sig_actual.hex().upper())
                 all_passed = False
+
             result_actual = schnorr_verify(msg, pubkey, bip340sig)
             if result == result_actual:
-                print(' * Passed adapt verification test.')
+                print(' * Passed adapt test.')
             else:
-                print(' * Failed adapt verification test.')
-                print('   Expected adapt verification result:', result)
-                print('     Actual adapt verification result:', result_actual)
+                print(' * Failed adapt test.')
+                print('   Expected adapt result:', result)
+                print('     Actual adapt result:', result_actual)
                 if comment:
                     print('   Comment:', comment)
                 all_passed = False
