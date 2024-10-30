@@ -4,7 +4,7 @@
 
 from typing import Tuple, Optional, Union, Any, NewType
 import hashlib
-import binascii
+import secrets
 
 #
 # The following helper functions were copied from these reference implementations:
@@ -120,16 +120,21 @@ def has_even_y(P: Point) -> bool:
     assert not is_infinite(P)
     return y(P) % 2 == 0
 
-def pubkey_gen(seckey: bytes, is_xonly: bool) -> Union[PlainPk, XonlyPk]:
+def pubkey_gen_xonly(seckey: bytes) -> XonlyPk:
     d0 = int_from_bytes(seckey)
     if not (1 <= d0 <= n - 1):
         raise ValueError('The secret key must be an integer in the range 1..n-1.')
     P = point_mul(G, d0)
     assert P is not None
-    if is_xonly:
-        return XonlyPk(xbytes(P))
-    else:
-        return PlainPk(cbytes(P))
+    return XonlyPk(xbytes(P))
+
+def pubkey_gen_plain(seckey: bytes) -> PlainPk:
+    d0 = int_from_bytes(seckey)
+    if not (1 <= d0 <= n - 1):
+        raise ValueError('The secret key must be an integer in the range 1..n-1.')
+    P = point_mul(G, d0)
+    assert P is not None
+    return PlainPk(cbytes(P))
 
 def schnorr_verify(msg: bytes, pubkey: XonlyPk, sig: bytes) -> bool:
     if len(pubkey) != 32:
@@ -153,7 +158,7 @@ def schnorr_verify(msg: bytes, pubkey: XonlyPk, sig: bytes) -> bool:
 #
 # End of helper functions copied from BIP-340 reference implementation.
 #
-
+# TODO: fix variable names & add xonly type in relevant args
 def schnorr_presig_sign(msg: bytes, seckey: bytes, aux_rand: bytes, T: PlainPk) -> bytes:
     d0 = int_from_bytes(seckey) #private key
     if not (1 <= d0 <= n - 1):
@@ -305,7 +310,7 @@ def presig_test_vectors() -> bool:
             print('\nTest vector', ('#' + index).rjust(3, ' ') + ':')
             if seckey_hex != '':
                 seckey = bytes.fromhex(seckey_hex)
-                pubkey_actual = pubkey_gen(seckey, True)
+                pubkey_actual = pubkey_gen_xonly(seckey)
                 if pubkey != pubkey_actual:
                     print(' * Failed key generation.')
                     print('   Expected key:', pubkey.hex().upper())
@@ -412,151 +417,29 @@ def run_test_vectors() -> None:
     test3 = secadaptor_test_vectors()
 
     if test1 and test2 and test3 :
-        print("All test vectors passed!")
+        print("All test vectors passed!!!")
 
-# Helper Functions
+def run_correctness_test_random(iters: int):
+    for i in range(iters):
+        print(".", end="", flush=True)
+        sk = secrets.token_bytes(32)
+        pk = pubkey_gen_xonly(sk)
+        secadaptor = secrets.token_bytes(32)
+        adaptor = pubkey_gen_plain(secadaptor)
 
-import os
+        aux_rand = secrets.token_bytes(32)
+        msg = secrets.token_bytes(32)
 
-def generate_aux_rand() -> bytes:
-    return os.urandom(32)
+        presig = schnorr_presig_sign(msg, sk, aux_rand, adaptor)
+        assert schnorr_presig_verify(msg, adaptor, pk, presig)
 
-def message_encode_32bytes(msg: str) -> bytes:
-    return hashlib.sha256(msg.encode()).digest()
+        sig = schnorr_adapt(presig, secadaptor)
+        assert schnorr_verify(msg, pk, sig)
 
-def point_from_hex(p: tuple) -> Point:
-    x = int_from_bytes(bytes.fromhex(p[0]))
-    y = int_from_bytes(bytes.fromhex(p[1]))
-    return (x, y)
-
-def test_pre_sign_generation() -> bool:
-    print("Test for generating a schnorr adaptor signature.")
-    msg = message_encode_32bytes("test")
-    print("msg:  " + msg.hex())
-    seckey = bytes_from_int(1)
-    print("seckey:  " + seckey.hex())
-    aux_rand = generate_aux_rand()
-    print("aux_rand:  " + aux_rand.hex())
-    t = 2
-    print("t:  " + bytes_from_int(t).hex())
-    T_point = point_mul(G, t)
-    assert T_point is not None
-    T_bytes = PlainPk(cbytes(T_point))
-    print("T_bytes:  " + T_bytes.hex())
-    sig = schnorr_presig_sign(msg, seckey, aux_rand, T_bytes)
-    print("sig:  " + sig.hex())
-    print("sig_parity:  " + sig[0:1].hex())
-    print("sig_R:  " + sig[1:33].hex())
-    print(has_even_y(cpoint(sig[0:33])))
-    print("sig_sig:  " + sig[33:65].hex())
-    sig64 = schnorr_adapt(sig, bytes_from_int(t))
-    print("sig64:  " + sig64.hex())
-    t1 = schnorr_extract_secadaptor(sig, sig64)
-    assert t == int_from_bytes(t1)
-    return True
-
-def test_pre_sign_nonce() -> bool:
-    print("Test for nonce generation")
-    print()
-    msg = message_encode_32bytes("test")
-    print("msg:  " + msg.hex())
-    seckey = bytes_from_int(1)
-    print("seckey:  " + seckey.hex())
-    aux_rand = generate_aux_rand()
-    print("aux_rand:  " + aux_rand.hex())
-    T = PlainPk(cbytes((0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B7)))
-    print("T:  " + T.hex())
-    sig = schnorr_presig_sign(msg, seckey, aux_rand, T)
-    print("sig:  " + sig.hex())
-    print("sig_parity:  " + sig[0:1].hex())
-    print("sig_R:  " + sig[1:33].hex())
-    print(has_even_y(cpoint(sig[0:33])))
-    print("sig_sig:  " + sig[33:65].hex())
-    return True
-
-def test_pre_sign_nonce_without_auxrand() -> bool:
-    print("Test for nonce generation without a random auxrand.")
-
-    print()
-    print("Test with different T")
-    msg = message_encode_32bytes("test")
-    print("msg:  " + msg.hex())
-    seckey = bytes_from_int(1)
-    aux_rand = bytes_from_int(1)
-    t1 = 2
-    T1_point = point_mul(G, t1)
-    assert T1_point is not None
-    T1_bytes = PlainPk(cbytes(T1_point))
-    print("T1_bytes:  " + T1_bytes.hex())
-    sig1 = schnorr_presig_sign(msg, seckey, aux_rand, T1_bytes)
-    print("sig1_parity:  " + sig1[0:1].hex())
-    print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(cpoint(sig1[0:33])))
-    print("sig1_sig:  " + sig1[33:65].hex())
-    sig164 = schnorr_adapt(sig1, bytes_from_int(t1))
-    print("sig1_64:  " + sig164.hex())
-    t11 = schnorr_extract_secadaptor(sig1, sig164)
-    assert t1 == int_from_bytes(t11)
-
-    t2 = 5
-    T2_point = point_mul(G, t2)
-    assert T2_point is not None
-    T2_bytes = PlainPk(cbytes(T2_point))
-    print("T2_bytes:  " + T2_bytes.hex())
-    sig2 = schnorr_presig_sign(msg, seckey, aux_rand, T2_bytes)
-    print("sig2_parity:  " + sig2[0:1].hex())
-    print("sig2_R:  " + sig2[1:33].hex())
-    print(has_even_y(cpoint(sig2[0:33])))
-    print("sig2_sig:  " + sig2[33:65].hex())
-    sig264 = schnorr_adapt(sig2, bytes_from_int(t2))
-    print("sig2_64:  " + sig264.hex())
-    t21 = schnorr_extract_secadaptor(sig2, sig264)
-    assert t2 == int_from_bytes(t21)
-
-    print()
-    print("Test with different seckey")
-    print("seckey1:  " + seckey.hex())
-    seckey2 = bytes_from_int(2)
-    print("seckey2:  " + seckey2.hex())
-    sig3 = schnorr_presig_sign(msg, seckey2, aux_rand, T1_bytes)
-    print("sig1_parity:  " + sig1[0:1].hex())
-    print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(cpoint(sig1[0:33])))
-    print("sig1_sig:  " + sig1[33:65].hex())
-    print("sig2_parity:  " + sig3[0:1].hex())
-    print("sig2_R:  " + sig3[1:33].hex())
-    print(has_even_y(cpoint(sig3[0:33])))
-    print("sig2_sig:  " + sig3[33:65].hex())
-    sig364 = schnorr_adapt(sig3, bytes_from_int(t1))
-    print("sig2_64:  " + sig364.hex())
-    t31 = schnorr_extract_secadaptor(sig3, sig364)
-    assert t1 == int_from_bytes(t31)
-
-    print()
-    print("Test with different msg")
-    print("msg1:  " + msg.hex())
-    msg2 = message_encode_32bytes("test2")
-    print("msg2:  " + msg2.hex())
-    sig4 = schnorr_presig_sign(msg2, seckey, aux_rand, T1_bytes)
-    print("sig1_parity:  " + sig1[0:1].hex())
-    print("sig1_R:  " + sig1[1:33].hex())
-    print(has_even_y(cpoint(sig1[0:33])))
-    print("sig1_sig:  " + sig1[33:65].hex())
-    print("sig2_parity:  " + sig4[0:1].hex())
-    print("sig2_R:  " + sig4[1:33].hex())
-    print(has_even_y(cpoint(sig4[0:33])))
-    print("sig2_sig:  " + sig4[33:65].hex())
-    sig464 = schnorr_adapt(sig4, bytes_from_int(t1))
-    print("sig2_64:  " + sig464.hex())
-    t41 = schnorr_extract_secadaptor(sig4, sig464)
-    assert t1 == int_from_bytes(t41)
-    return True
+        extracted_secadaptor = schnorr_extract_secadaptor(presig, sig)
+        assert (extracted_secadaptor == secadaptor)
+    print("\nCorrectness test passed!!!")
 
 if __name__ == "__main__":
-    test_pre_sign_generation()
-    print()
-    test_pre_sign_nonce()
-    print()
-    test_pre_sign_nonce_without_auxrand()
-    print()
     run_test_vectors()
+    run_correctness_test_random(6)

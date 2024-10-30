@@ -20,7 +20,7 @@ def vector0():
 
     adaptor = cbytes(adaptor_)
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
-    pubkey = pubkey_gen(seckey, True)
+    pubkey = pubkey_gen_xonly(seckey)
 
     # We should have at least one test vector where the seckey needs to be
     # negated and one where it doesn't. In this one the seckey doesn't need to
@@ -49,7 +49,7 @@ def vector1():
 
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
 
-    return (seckey, pubkey_gen(seckey, True), aux_rand, msg, adaptor, presig, "TRUE", "test fails if msg is reduced modulo p or n")
+    return (seckey, pubkey_gen_xonly(seckey), aux_rand, msg, adaptor, presig, "TRUE", "test fails if msg is reduced modulo p or n")
 
 # Signs with a given nonce and secadaptor. This can be INSECURE and is only INTENDED FOR
 # GENERATING TEST VECTORS. The regular signing algorithm should take adaptor instead of
@@ -103,7 +103,7 @@ def vector2():
     presig  = insecure_schnorr_presig_sign(msg, seckey, k0, t)
     secadaptor = bytes_from_int(t)
 
-    return (None, pubkey_gen(seckey, True), None, msg, pubkey_gen(secadaptor, False), presig, "TRUE", None)
+    return (None, pubkey_gen_xonly(seckey), None, msg, pubkey_gen_plain(secadaptor), presig, "TRUE", None)
 
 default_seckey = bytes_from_int(0xB7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF)
 default_msg = bytes_from_int(0x243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89)
@@ -121,7 +121,7 @@ def vector3():
     # public key.
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
 
     pubkey = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
@@ -151,7 +151,7 @@ except_fn = lambda e: str(e) == 'x is not a valid compressed point.'
 def vector4():
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
 
     pubkey = bytes_from_int(p)
@@ -165,48 +165,48 @@ def vector4():
 def vector5():
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
     rx = bytes_from_int(0xEEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34)
     presig = presig[0:1] + rx + presig[33:]
     assert(lift_x(int_from_bytes(presig[1:33])) is None)
     assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] is not on the curve")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "presig[1:33] is not on the curve")
 
 # presig[1:33] (R'.x) is equal to field size
 # Purpose: The lift_x(R') call inside cpoint(R') will fail
 def vector6():
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
 
     presig = presig[0:1] + bytes_from_int(p) + presig[33:]
     assert(lift_x(int_from_bytes(presig[1:33])) is None)
     assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[1:33] equal to field size")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "presig[1:33] equal to field size")
 
 # The parity of R' is invalid
 # Purpose: The cpoint(R') will fail
 def vector7():
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
     presig = b'\x04' + presig[1:]
     assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is invalid")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "The first byte of presig (parity byte) is invalid")
 
 # parity of R' is flipped
 # Purpose: `adaptor_expected == adaptor` check in `presig_verify` will fail
 def vector8():
     seckey = default_seckey
-    pubkey = pubkey_gen(seckey, True)
+    pubkey = pubkey_gen_xonly(seckey)
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
     # flip the last bit of the parity byte (makes 2 -> 3 and 3 -> 2)
     neg_parity = (presig[0] ^ 1).to_bytes(1, 'big')
@@ -229,31 +229,31 @@ def vector8():
 def vector9():
     seckey = default_seckey
     msg = default_msg
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
 
     # Replace s with a number that's equal to the curve order
     presig = presig[0:33] + bytes_from_int(n)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "presig[33:65] is equal to the curve order")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "presig[33:65] is equal to the curve order")
 
 
 def vector10():
     seckey = default_seckey
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     msg = int_from_bytes(default_msg)
     neg_msg = bytes_from_int(n - msg)
     presig = schnorr_presig_sign(neg_msg, seckey, default_aux_rand, adaptor)
-    return (None, pubkey_gen(seckey, True), None, bytes_from_int(msg), adaptor, presig, "FALSE", "negated message")
+    return (None, pubkey_gen_xonly(seckey), None, bytes_from_int(msg), adaptor, presig, "FALSE", "negated message")
 
 def vector11():
     seckey = default_seckey
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
     msg = default_msg
     presig = schnorr_presig_sign(msg, seckey, default_aux_rand, adaptor)
     presig = presig[0:33] + bytes_from_int(n - int_from_bytes(presig[33:65]))
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "negated presig[33:65] value")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "negated presig[33:65] value")
 
 # create a pre-signature  with k = 0
 # Purpose: hits the `R0 is None` check
@@ -263,9 +263,9 @@ def vector12():
     k = 0
     t = int_from_bytes(default_secadaptor)
     presig = insecure_schnorr_presig_sign(msg, seckey, k, t)
-    adaptor = pubkey_gen(default_secadaptor, False)
+    adaptor = pubkey_gen_plain(default_secadaptor)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "s'G - eP is infinite")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "s'G - eP is infinite")
 
 # create pre-signature with t = 0
 # Purpose: hits the `T is None` check
@@ -278,7 +278,7 @@ def vector13():
     presig = insecure_schnorr_presig_sign(msg, seckey, k, t)
     adaptor = cbytes_ext(infinity)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "R' - (s'G - eP) is infinite")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "R' - (s'G - eP) is infinite")
 
 # create pre-signature with k = 0 and t = 0
 # Purpose: improve test coverage
@@ -290,7 +290,7 @@ def vector14():
     adaptor = cbytes_ext(infinity)
     assert_raises(exception, lambda: cpoint(presig[0:33]), except_fn)
 
-    return (None, pubkey_gen(seckey, True), None, msg, adaptor, presig, "FALSE", "R' - (s'G - eP) is infinite")
+    return (None, pubkey_gen_xonly(seckey), None, msg, adaptor, presig, "FALSE", "R' - (s'G - eP) is infinite")
 
 #
 # `schnorr_adapt` test vectors
@@ -300,12 +300,12 @@ def vector15():
     seckey = default_seckey
     aux_rand = default_aux_rand
     secadaptor = default_secadaptor
-    adaptor = pubkey_gen(secadaptor, False)
+    adaptor = pubkey_gen_plain(secadaptor)
     msg = int_from_bytes(default_msg)
     neg_msg = bytes_from_int(n - msg)
     presig_neg = schnorr_presig_sign(neg_msg, seckey, aux_rand, adaptor)
     bip340sig = schnorr_adapt(presig_neg, secadaptor)
-    return (pubkey_gen(seckey, True), bytes_from_int(msg), secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature generated on negated message")
+    return (pubkey_gen_xonly(seckey), bytes_from_int(msg), secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature generated on negated message")
 
 #
 # `schnorr_extract_secadaptor` and `schnorr_adapt` test vectors
@@ -322,9 +322,9 @@ def vector16(vectype):
     msg = bytes_from_int(0x389575B92B586BE2730A998241E5CF651D6C191FA64EEA3D00256AFF7D18484F)
     aux_rand = bytes_from_int(0x20E71D6198A2D8096D44180BC0E0D02D8B215AE6F1311AD1F03B6040E4C41889)
     seckey = bytes_from_int(0x84BCB0C86AF195C590A04C5E97D2D17EDB2A35A82A162D2C0CB2E0923629FC8B)
-    pubkey = pubkey_gen(seckey, True)
+    pubkey = pubkey_gen_xonly(seckey)
     secadaptor = bytes_from_int(0xE5E68D0E637DA4822732E20F3EEBE1826892E81C2CFEC6BEC600CDA3F66A53F1)
-    adaptor = pubkey_gen(secadaptor, False)
+    adaptor = pubkey_gen_plain(secadaptor)
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
     assert presig[:1] == b'\x03'
     bip340sig = schnorr_adapt(presig, secadaptor)
@@ -340,9 +340,9 @@ def vector17(vectype):
     msg = bytes_from_int(0x2F4E505E2C70E81B94431800F810ECB04FD0AAEEB0C703F8DCE44EEDFA0AB8C2)
     aux_rand = bytes_from_int(0xFBCB7B7E86899D0D4BE438F415746F39CA19CD0C43721632B2CE19D37C211382)
     seckey = bytes_from_int(0xDBF97DE24E9197B78F6166B15B870A85DB1337099393F85E07A521919740B1EF)
-    pubkey = pubkey_gen(seckey, True)
+    pubkey = pubkey_gen_xonly(seckey)
     secadaptor = bytes_from_int(0x539212A1B9FC42F44AD1A57720C744408403FFFF805848664027FC9C74B3876A)
-    adaptor = pubkey_gen(secadaptor, False)
+    adaptor = pubkey_gen_plain(secadaptor)
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
     assert presig[:1] == b'\x02'
     bip340sig = schnorr_adapt(presig, secadaptor)
@@ -358,12 +358,12 @@ def vector18(vectype):
     seckey = default_seckey
     aux_rand = default_aux_rand
     secadaptor = default_secadaptor
-    adaptor = pubkey_gen(secadaptor, False)
+    adaptor = pubkey_gen_plain(secadaptor)
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
     presig_neg = presig[0:33] + bytes_from_int(n - int_from_bytes(presig[33:65]))
     bip340sig = schnorr_adapt(presig_neg, secadaptor)
     if vectype == 'adapt':
-        return (pubkey_gen(seckey, True), msg, secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature with negated s' value")
+        return (pubkey_gen_xonly(seckey), msg, secadaptor, presig_neg, bip340sig, "FALSE", "adapt a pre-signature with negated s' value")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "FALSE", "extract secadaptor from bip340 signature created by adapting a pre-signature with negated s' value")
 
@@ -372,14 +372,14 @@ def vector19(vectype):
     seckey = default_seckey
     aux_rand = default_aux_rand
     secadaptor = default_secadaptor
-    adaptor = pubkey_gen(secadaptor, False)
+    adaptor = pubkey_gen_plain(secadaptor)
     presig = schnorr_presig_sign(msg, seckey, aux_rand, adaptor)
      # flip the last bit of the parity byte (makes 2 -> 3 and 3 -> 2)
     neg_parity = (presig[0] ^ 1).to_bytes(1, 'big')
     neg_presig = neg_parity + presig[1:]
     bip340sig = schnorr_adapt(neg_presig, secadaptor)
     if vectype == 'adapt':
-        return (pubkey_gen(seckey, True), msg, secadaptor, neg_presig, bip340sig, "FALSE", "adapt a pre-signature with negated R' value")
+        return (pubkey_gen_xonly(seckey), msg, secadaptor, neg_presig, bip340sig, "FALSE", "adapt a pre-signature with negated R' value")
     elif vectype == 'secadaptor':
         return (presig, bip340sig, secadaptor, "FALSE", "extract secadaptor from bip340 signature created by adapting a pre-signature with negated R' value")
 
